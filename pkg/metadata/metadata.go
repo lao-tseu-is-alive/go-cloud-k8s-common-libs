@@ -20,8 +20,4 @@ CREATE TABLE IF NOT EXISTS go_metadata_db_schema
 );
 comment on table go_metadata_db_schema is 'to track version of schema of different micro services';
 `
-	countMetaUserServiceSQL = "SELECT COUNT(*) as num FROM go_metadata_db_schema WHERE service = 'GO_USER';"
-	insertMetaUserService   = `INSERT INTO go_metadata_db_schema 
-						(service, schema, table_name, version) 
-				VALUES 	('GO_USER','public','go_user',$1) RETURNING id;`
 )

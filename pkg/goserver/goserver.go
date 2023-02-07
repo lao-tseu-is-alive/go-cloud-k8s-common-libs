@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cristalhq/jwt/v4"
+	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
@@ -115,13 +116,14 @@ func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, con
 	var contentRewrite = middleware.Rewrite(map[string]string{"/*": fmt.Sprintf("/%s$1", webRootDir)})
 	e.GET("/*", contentHandler, contentRewrite)
 
-	// Restricted group
+	// Restricted group definition : we decide to only all authenticated calls to the URL /api
 	r := e.Group("/api")
 	// Configure middleware with the custom claims type
-	config := middleware.JWTConfig{
+	config := echojwt.Config{
 		ContextKey: "jwtdata",
 		SigningKey: JwtSecret,
-		ParseTokenFunc: func(auth string, c echo.Context) (interface{}, error) {
+
+		ParseTokenFunc: func(c echo.Context, auth string) (interface{}, error) {
 			verifier, _ := jwt.NewVerifierHS(jwt.HS512, JwtSecret)
 			// claims are of type `jwt.MapClaims` when token is created with `jwt.Parse`
 			token, err := jwt.Parse([]byte(auth), verifier)
@@ -134,14 +136,13 @@ func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, con
 			if err != nil {
 				return nil, err
 			}
-			/*
-				l.Printf("Algorithm %v\n", token.Header().Algorithm)
-				l.Printf("Type      %v\n", token.Header().Type)
-				l.Printf("Claims    %v\n", string(token.Claims()))
-				l.Printf("Payload   %v\n", string(token.PayloadPart()))
-				l.Printf("Token     %v\n", string(token.Bytes()))
-			*/
-			l.Printf("ParseTokenFunc : Claims:    %+v\n", string(token.Claims()))
+
+			l.Printf("INFO : JWT ParseTokenFunc, Algorithm %v\n", token.Header().Algorithm)
+			l.Printf("INFO : JWT ParseTokenFunc, Type      %v\n", token.Header().Type)
+			l.Printf("INFO : JWT ParseTokenFunc, Claims    %v\n", string(token.Claims()))
+			l.Printf("INFO : JWT ParseTokenFunc, Payload   %v\n", string(token.PayloadPart()))
+			l.Printf("INFO : JWT ParseTokenFunc, Token     %v\n", string(token.Bytes()))
+			l.Printf("INFO : JWT ParseTokenFunc, ParseTokenFunc : Claims:    %+v\n", string(token.Claims()))
 			if newClaims.IsValidAt(time.Now()) {
 				claims := JwtCustomClaims{}
 				err := token.DecodeClaims(&claims)
@@ -162,7 +163,7 @@ func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, con
 
 		},
 	}
-	r.Use(middleware.JWTWithConfig(config))
+	r.Use(echojwt.WithConfig(config))
 
 	myServer := GoHttpServer{
 		listenAddress: listenAddress,
@@ -183,13 +184,23 @@ func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, con
 	return &myServer
 }
 
-// AddRoute  adds a handler for this web server
-func (s *GoHttpServer) AddRoute(baseURL string, urlPath string, handler http.HandlerFunc) {
+// GetEcho  returns a pointer to the Echo reference
+func (s *GoHttpServer) GetEcho() *echo.Echo {
+	return s.e
+}
+
+// GetRestrictedGroup  adds a handler for this web server
+func (s *GoHttpServer) GetRestrictedGroup() *echo.Group {
+	return s.r
+}
+
+// AddGetRoute  adds a handler for this web server
+func (s *GoHttpServer) AddGetRoute(baseURL string, urlPath string, handler echo.HandlerFunc) {
 	//s.router.Handle("/", s.getMyDefaultHandler())
 	//s.e.GET("/readiness", s.getReadinessHandler())
 	// s.e.GET("/health", s.getHealthHandler())
 	// the next route is not restricted with jwt token
-	//s.e.GET(baseURL+"/users/maxid", usersService.GetMaxId)
+	s.e.GET(baseURL+urlPath, handler)
 
 }
 
