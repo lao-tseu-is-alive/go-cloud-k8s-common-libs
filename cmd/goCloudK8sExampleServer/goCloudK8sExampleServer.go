@@ -61,7 +61,7 @@ func (s Service) login(ctx echo.Context) error {
 			Issuer:    "",
 			Subject:   "",
 			ExpiresAt: &jwt.NumericDate{Time: time.Now().Add(time.Minute * time.Duration(s.JwtDuration))},
-			IssuedAt:  nil,
+			IssuedAt:  &jwt.NumericDate{Time: time.Now()},
 			NotBefore: nil,
 		},
 		Id:       999,
@@ -144,9 +144,12 @@ func main() {
 	r := server.GetRestrictedGroup()
 	// now with restricted group reference you can here the routes defined in OpenApi users.yaml are registered
 	// yourModelEntityFromOpenApi.RegisterHandlers(r, &yourModelService)
-	r.GET("secret", yourService.restricted)
+	r.GET("/secret", yourService.restricted)
 	loginExample := fmt.Sprintf("curl -v -X POST -d 'login=%s' -d 'pass=%s' http://localhost%s/login", yourOnlyUsername, yourOnlyFakeStupidPass, listenAddr)
+	getSecretExample := fmt.Sprintf(" curl -v  -H \"Authorization: Bearer ${TOKEN}\" http://localhost%s/api/secret |jq\n", listenAddr)
 	l.Printf("INFO: from another terminal just try :\n %s", loginExample)
+	l.Printf("INFO: then type export TOKEN=your_token_above_goes_here   \n %s", getSecretExample)
+
 	err = server.StartServer()
 	if err != nil {
 		l.Fatalf("💥💥 ERROR: 'calling echo.Start(%s) got error: %v'\n", listenAddr, err)

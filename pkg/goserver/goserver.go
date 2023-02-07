@@ -154,10 +154,13 @@ func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, con
 				//currentUserId := claims.Id
 				//if store.IsUserActive(currentUserId) {
 				//	return token, nil // ALL IS GOOD HERE
+				//} else {
+				// return nil, errors.New("token invalid because user account has been deactivated")
 				//}
 				//l.Printf("💥💥 ERROR: 'in  content.ReadFile(%s) got error: %v'\n", errorPage, err)
-				return nil, errors.New("token invalid because user account has been deactivated")
+				return token, nil // ALL IS GOOD HERE
 			} else {
+				l.Printf("ERROR : JWT ParseTokenFunc,  : IsValidAt(%+v)\n", time.Now())
 				return nil, errors.New("token has expired")
 			}
 
