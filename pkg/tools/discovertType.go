@@ -16,12 +16,24 @@ func GetOpenApiType(t any) (string, error) {
 	case reflect.String:
 		return fmt.Sprint("string"), nil
 	case reflect.Ptr:
-		if v.Elem() != reflect.Zero(v.Type()) {
-			fmt.Printf("##kind %v : Pointer to kind:%v", v.Kind(), v.Elem().Kind())
+		if v.IsNil() {
+			fmt.Printf("##kind %v : Uninitialized Pointer to type: %v\n", v.Kind(), v.Type().Elem())
 		} else {
-			fmt.Printf("##kind %v : Pointer to type: %v, kind:%v", v.Kind(), v.Elem().Type(), v.Elem().Kind())
+			fmt.Printf("##kind %v : Pointer to value: >>%v<< of type %v , element kind: %v \n", v.Kind(), v.Elem(), v.Type().Elem(), v.Type().Elem().Kind())
 		}
-		return fmt.Sprint("string,nullable"), nil
+		switch v.Type().Elem().Kind() {
+		case reflect.String:
+			return fmt.Sprint("string, nullable"), nil
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return fmt.Sprint("integer, nullable"), nil
+		case reflect.Float32, reflect.Float64:
+			return fmt.Sprint("number, nullable"), nil
+		case reflect.Struct:
+			return fmt.Sprint("object, nullable"), nil
+		default:
+			log.Printf("WARNING: GetOpenApiType(%v[%T]) unhandled case result : Pointer to %s", v, v, reflect.TypeOf(t))
+			return fmt.Sprintf("%s", reflect.TypeOf(t)), errors.New(GetTypeUnHandledErrMsg)
+		}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return fmt.Sprint("integer"), nil
 	case reflect.Float32, reflect.Float64:
@@ -31,7 +43,7 @@ func GetOpenApiType(t any) (string, error) {
 	case reflect.Struct:
 		return fmt.Sprint("object"), nil
 	default:
-		log.Printf("WARNING: GetJavascriptType(%v[%T]) unhandled case result : %s", v, v, reflect.TypeOf(t))
+		log.Printf("WARNING: GetOpenApiType(%v[%T]) unhandled case result : %s", v, v, reflect.TypeOf(t))
 		return fmt.Sprintf("%s", reflect.TypeOf(t)), errors.New(GetTypeUnHandledErrMsg)
 	}
 }

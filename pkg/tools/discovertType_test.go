@@ -2,6 +2,7 @@ package tools
 
 import (
 	"testing"
+	"time"
 )
 
 func TestGetOpenApiType(t *testing.T) {
@@ -9,6 +10,23 @@ func TestGetOpenApiType(t *testing.T) {
 		t any
 	}
 	var emptyStringPointer *string
+	var stringValue = "toto is cool"
+	stringPointer := &stringValue
+	var integerValue = 678
+	intPointer := &integerValue
+	var floatValue = 3.1415
+	floatPointer := &floatValue
+	type Person struct {
+		FirstName string    `json:"firstname"`
+		LastName  string    `json:"lastname"`
+		BirthDate time.Time `json:"birthdate"`
+	}
+	bob := Person{
+		FirstName: "Bob",
+		LastName:  "BLAIR",
+		BirthDate: time.Now(),
+	}
+	personPointer := &bob
 	tests := []struct {
 		name    string
 		args    args
@@ -20,9 +38,29 @@ func TestGetOpenApiType(t *testing.T) {
 			wantRes: "string",
 			wantErr: nil,
 		},
-		{name: "it should return string pointer for a empty string pointer",
+		{name: "it should return string nullable for a uninitialized pointer to string",
 			args:    args{t: emptyStringPointer},
-			wantRes: "string,nullable",
+			wantRes: "string, nullable",
+			wantErr: nil,
+		},
+		{name: "it should return string nullable for a pointer to a string value",
+			args:    args{t: stringPointer},
+			wantRes: "string, nullable",
+			wantErr: nil,
+		},
+		{name: "it should return integer nullable for a pointer to a integer value",
+			args:    args{t: intPointer},
+			wantRes: "integer, nullable",
+			wantErr: nil,
+		},
+		{name: "it should return number nullable for a pointer to a float value",
+			args:    args{t: floatPointer},
+			wantRes: "number, nullable",
+			wantErr: nil,
+		},
+		{name: "it should return object nullable for a pointer to a struct value",
+			args:    args{t: personPointer},
+			wantRes: "object, nullable",
 			wantErr: nil,
 		},
 		{name: "it should return string for a string with only space",
@@ -30,7 +68,7 @@ func TestGetOpenApiType(t *testing.T) {
 			wantRes: "string",
 			wantErr: nil,
 		},
-		{name: "it should return int for a zero",
+		{name: "it should return integer for a zero",
 			args:    args{t: 0},
 			wantRes: "integer",
 			wantErr: nil,
@@ -38,6 +76,16 @@ func TestGetOpenApiType(t *testing.T) {
 		{name: "it should return int for a negative number",
 			args:    args{t: -10},
 			wantRes: "integer",
+			wantErr: nil,
+		},
+		{name: "it should return number for a float",
+			args:    args{t: floatValue},
+			wantRes: "number",
+			wantErr: nil,
+		},
+		{name: "it should return object for a struct",
+			args:    args{t: bob},
+			wantRes: "object",
 			wantErr: nil,
 		},
 	}
