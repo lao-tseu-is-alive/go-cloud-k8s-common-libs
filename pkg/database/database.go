@@ -3,6 +3,7 @@ package database
 import (
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"log"
 )
 
@@ -19,6 +20,7 @@ type DB interface {
 	GetQueryBool(sql string, arguments ...interface{}) (result bool, err error)
 	GetQueryString(sql string, arguments ...interface{}) (result string, err error)
 	GetVersion() (result string, err error)
+	GetPGConn() (Conn *pgxpool.Pool, err error)
 	Close()
 }
 

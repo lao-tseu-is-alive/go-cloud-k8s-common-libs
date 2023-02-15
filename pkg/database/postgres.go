@@ -144,6 +144,14 @@ func (db *PgxDB) GetVersion() (result string, err error) {
 	return result, err
 }
 
+func (db *PgxDB) GetPGConn() (Conn *pgxpool.Pool, err error) {
+	dbVersion, err := db.GetVersion()
+	if err != nil || len(dbVersion) < 2 {
+		return nil, errors.New("NOT CONNECTED TO DB")
+	}
+	return db.Conn, nil
+}
+
 // Close is a postgres helper function to close the connection to the database
 func (db *PgxDB) Close() {
 	db.Conn.Close()
