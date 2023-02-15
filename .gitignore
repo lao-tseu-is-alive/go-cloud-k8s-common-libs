@@ -15,3 +15,5 @@
 # vendor/
 # jetbrains project
 .idea
+/.env
+/NOT_READY_YET/storage/storage.go
