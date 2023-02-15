@@ -22,7 +22,7 @@ const (
 	defaultDBPort          = 5432
 	defaultDBIp            = "127.0.0.1"
 	defaultDBSslMode       = "prefer"
-	defaultWebRootDir      = "goCloudK8sUserGroupFront/dist/"
+	defaultWebRootDir      = "goCloudK8sExampleFront/dist/"
 	yourOnlyUsername       = "bill"
 	yourOnlyFakeStupidPass = "board"
 )
@@ -35,7 +35,7 @@ var content embed.FS
 type Service struct {
 	Log *log.Logger
 	//Store       Storage
-	dbConn      *database.PgxDB
+	dbConn      database.DB
 	JwtSecret   []byte
 	JwtDuration int
 }
@@ -86,7 +86,7 @@ func (s Service) login(ctx echo.Context) error {
 }
 
 func (s Service) restricted(ctx echo.Context) error {
-	s.Log.Println("trace: entering CreateUser()")
+	s.Log.Println("trace: entering restricted() ")
 	// get the current user from JWT TOKEN
 	u := ctx.Get("jwtdata").(*jwt.Token)
 	claims := goserver.JwtCustomClaims{}
@@ -100,6 +100,22 @@ func (s Service) restricted(ctx echo.Context) error {
 	//	return echo.NewHTTPError(http.StatusUnauthorized, "current calling user is not active anymore")
 	//}
 	return ctx.JSON(http.StatusCreated, claims)
+}
+
+func checkReady(info string) bool {
+	// you decide what makes you ready, may be it is the connection to the database
+	//if !connectedToDB {
+	//	return false
+	//}
+	return true
+}
+
+func checkHealthy(info string) bool {
+	// you decide what makes you ready, may be it is the connection to the database
+	//if !stillConnectedToDB {
+	//	return false
+	//}
+	return true
 }
 
 func main() {
@@ -119,11 +135,17 @@ func main() {
 	if err != nil {
 		l.Fatalf("💥💥 error doing config.GetPgDbDsnUrlFromEnv. error: %v\n", err)
 	}
-	dbConn, err := database.GetPgxConn(dbDsn, runtime.NumCPU(), l)
+	dbConn, err := database.GetInstance("pgx", dbDsn, runtime.NumCPU(), l)
 	if err != nil {
-		l.Fatalf("💥💥 error doing users.GetPgxConn(postgres, dbDsn  : %v\n", err)
+		l.Fatalf("💥💥 error doing database.GetInstance(pgx, dbDsn  : %v\n", err)
 	}
 	defer dbConn.Close()
+
+	dbVersion, err := dbConn.GetVersion()
+	if err != nil {
+		l.Fatalf("💥💥 error doing dbConn.GetVersion() : %v\n", err)
+	}
+	l.Printf("INFO: connected to DB version : %s", dbVersion)
 
 	yourService := Service{
 		Log:         l,
@@ -137,8 +159,11 @@ func main() {
 		l.Fatalf("💥💥 ERROR: 'calling GetPortFromEnv got error: %v'\n", err)
 	}
 	l.Printf("INFO: 'Will start HTTP server listening on port %s'", listenAddr)
-	server := goserver.NewGoHttpServer(listenAddr, l, defaultWebRootDir, content)
+	server := goserver.NewGoHttpServer(listenAddr, l, defaultWebRootDir, content, "/api")
 	e := server.GetEcho()
+
+	e.GET("/readiness", server.GetReadinessHandler(checkReady, "Connection to DB"))
+	e.GET("/health", server.GetHealthHandler(checkHealthy, "Connection to DB"))
 	// Login route
 	e.POST("/login", yourService.login)
 	r := server.GetRestrictedGroup()

@@ -25,6 +25,8 @@ const (
 	defaultReadTimeout     = 10 * time.Second // max time to read request from the client
 	defaultWriteTimeout    = 10 * time.Second // max time to write response to the client
 	defaultIdleTimeout     = 2 * time.Minute  // max time for connections using TCP Keep-Alive
+	initCallMsg            = "INITIAL CALL TO %s()\n"
+	formatTraceRequest     = "TRACE: [%s] %s  path:'%s', RemoteAddrIP: [%s], msg: %s, val: %v\n"
 )
 
 // JwtCustomClaims are custom claims extending default ones.
@@ -36,6 +38,10 @@ type JwtCustomClaims struct {
 	Username string `json:"username"`
 	IsAdmin  bool   `json:"is_admin"`
 }
+
+type FuncAreWeReady func(msg string) bool
+
+type FuncAreWeHealthy func(msg string) bool
 
 // GoHttpServer is a struct type to store information related to all handlers of web server
 type GoHttpServer struct {
@@ -73,7 +79,7 @@ func waitForShutdownToExit(srv *http.Server, secondsToWait time.Duration) {
 }
 
 // NewGoHttpServer is a constructor that initializes the server,routes and all fields in GoHttpServer type
-func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, content embed.FS) *GoHttpServer {
+func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, content embed.FS, restrictedUrl string) *GoHttpServer {
 	myServerMux := http.NewServeMux()
 
 	e := echo.New()
@@ -117,7 +123,7 @@ func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, con
 	e.GET("/*", contentHandler, contentRewrite)
 
 	// Restricted group definition : we decide to only all authenticated calls to the URL /api
-	r := e.Group("/api")
+	r := e.Group(restrictedUrl)
 	// Configure middleware with the custom claims type
 	config := echojwt.Config{
 		ContextKey: "jwtdata",
@@ -199,12 +205,44 @@ func (s *GoHttpServer) GetRestrictedGroup() *echo.Group {
 
 // AddGetRoute  adds a handler for this web server
 func (s *GoHttpServer) AddGetRoute(baseURL string, urlPath string, handler echo.HandlerFunc) {
-	//s.router.Handle("/", s.getMyDefaultHandler())
-	//s.e.GET("/readiness", s.getReadinessHandler())
-	// s.e.GET("/health", s.getHealthHandler())
 	// the next route is not restricted with jwt token
 	s.e.GET(baseURL+urlPath, handler)
 
+}
+
+//############# BEGIN K8S standard Echo HANDLERS
+
+func (s *GoHttpServer) GetReadinessHandler(readyFunc FuncAreWeReady, msg string) echo.HandlerFunc {
+	handlerName := "GetReadinessHandler"
+	s.logger.Printf(initCallMsg, handlerName)
+	return echo.HandlerFunc(func(ctx echo.Context) error {
+		ready := readyFunc(msg)
+		r := ctx.Request()
+		s.logger.Printf(formatTraceRequest, handlerName, r.Method, r.URL.Path, r.RemoteAddr, msg, ready)
+		if ready {
+			msgOK := fmt.Sprintf("GetReadinessHandler: (%s) is ready: %#v ", msg, ready)
+			return ctx.JSON(http.StatusOK, msgOK)
+		} else {
+			msgErr := fmt.Sprintf("GetReadinessHandler: (%s) is not ready: %#v ", msg, ready)
+			return echo.NewHTTPError(http.StatusInternalServerError, msgErr)
+		}
+	})
+}
+func (s *GoHttpServer) GetHealthHandler(healthyFunc FuncAreWeHealthy, msg string) echo.HandlerFunc {
+	handlerName := "GetHealthHandler"
+	s.logger.Printf(initCallMsg, handlerName)
+	return echo.HandlerFunc(func(ctx echo.Context) error {
+		healthy := healthyFunc(msg)
+		r := ctx.Request()
+		s.logger.Printf(formatTraceRequest, handlerName, r.Method, r.URL.Path, r.RemoteAddr, msg, healthy)
+		if healthy {
+			msgOK := fmt.Sprintf("GetHealthHandler: (%s) is healthy: %#v ", msg, healthy)
+			return ctx.JSON(http.StatusOK, msgOK)
+		} else {
+			msgErr := fmt.Sprintf("GetHealthHandler: (%s) is not healthy: %#v ", msg, healthy)
+			return echo.NewHTTPError(http.StatusInternalServerError, msgErr)
+		}
+	})
 }
 
 // StartServer initializes all the handlers paths of this web server, it is called inside the NewGoHttpServer constructor

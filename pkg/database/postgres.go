@@ -12,17 +12,12 @@ import (
 
 const getPGVersion = "SELECT version();"
 
-var (
-	ErrNoRecordFound     = errors.New("record not found")
-	ErrCouldNotBeCreated = errors.New("could not be created in DB")
-)
-
 type PgxDB struct {
 	Conn *pgxpool.Pool
 	log  *log.Logger
 }
 
-func GetPgxConn(dbConnectionString string, maxConnectionsInPool int, log *log.Logger) (*PgxDB, error) {
+func newPgxConn(dbConnectionString string, maxConnectionsInPool int, log *log.Logger) (DB, error) {
 	var psql PgxDB
 	var parsedConfig *pgx.ConnConfig
 	var err error
@@ -79,12 +74,42 @@ func GetPgxConn(dbConnectionString string, maxConnectionsInPool int, log *log.Lo
 	return &psql, err
 }
 
+// ExecActionQuery is a postgres helper function for an action query, returning the numbers of rows affected
+func (db *PgxDB) ExecActionQuery(sql string, arguments ...interface{}) (rowsAffected int, err error) {
+	commandTag, err := db.Conn.Exec(context.Background(), sql, arguments...)
+	if err != nil {
+		db.log.Printf("ExecActionQuery unexpectedly failed with sql: %v . Args(%+v), error : %v", sql, arguments, err)
+		return 0, err
+	}
+	return int(commandTag.RowsAffected()), err
+}
+
+func (db *PgxDB) Insert(sql string, arguments ...interface{}) (lastInsertId int, err error) {
+	sql4PGX := fmt.Sprintf("%s RETURNING id;", sql)
+	err = db.Conn.QueryRow(context.Background(), sql4PGX, arguments...).Scan(&lastInsertId)
+	if err != nil {
+		db.log.Printf("ERROR: Insert unexpectedly failed with %v: (%v), error : %v", sql, arguments, err)
+		return 0, err
+	}
+	return lastInsertId, err
+}
+
 // GetQueryInt is a postgres helper function for a query expecting an integer result
 func (db *PgxDB) GetQueryInt(sql string, arguments ...interface{}) (result int, err error) {
 	err = db.Conn.QueryRow(context.Background(), sql, arguments...).Scan(&result)
 	if err != nil {
 		db.log.Printf("error : GetQueryInt(%s) queryRow unexpectedly failed. args : (%v), error : %v\n", sql, arguments, err)
 		return 0, err
+	}
+	return result, err
+}
+
+// GetQueryBool is a postgres helper function for a query expecting an integer result
+func (db *PgxDB) GetQueryBool(sql string, arguments ...interface{}) (result bool, err error) {
+	err = db.Conn.QueryRow(context.Background(), sql, arguments...).Scan(&result)
+	if err != nil {
+		db.log.Printf("error : GetQueryBool(%s) queryRow unexpectedly failed. args : (%v), error : %v\n", sql, arguments, err)
+		return false, err
 	}
 	return result, err
 }
@@ -104,24 +129,19 @@ func (db *PgxDB) GetQueryString(sql string, arguments ...interface{}) (result st
 	return result, err
 }
 
-// GetQueryBool is a postgres helper function for a query expecting an integer result
-func (db *PgxDB) GetQueryBool(sql string, arguments ...interface{}) (result bool, err error) {
-	err = db.Conn.QueryRow(context.Background(), sql, arguments...).Scan(&result)
+func (db *PgxDB) GetVersion() (result string, err error) {
+	var mayBeResultIsNull *string
+	err = db.Conn.QueryRow(context.Background(), getPGVersion).Scan(&mayBeResultIsNull)
 	if err != nil {
-		db.log.Printf("error : GetQueryBool(%s) queryRow unexpectedly failed. args : (%v), error : %v\n", sql, arguments, err)
-		return false, err
+		db.log.Printf("error : GetVersion() queryRow unexpectedly failed. error : %v\n", err)
+		return "", err
 	}
+	if mayBeResultIsNull == nil {
+		db.log.Print("error : GetVersion() queryRow returned no results \n")
+		return "", ErrNoRecordFound
+	}
+	result = *mayBeResultIsNull
 	return result, err
-}
-
-// ExecActionQuery is a postgres helper function for an action query, returning the numbers of rows affected
-func (db *PgxDB) ExecActionQuery(sql string, arguments ...interface{}) (rowsAffected int, err error) {
-	commandTag, err := db.Conn.Exec(context.Background(), sql, arguments...)
-	if err != nil {
-		db.log.Printf("ExecActionQuery unexpectedly failed with sql: %v . Args(%+v), error : %v", sql, arguments, err)
-		return 0, err
-	}
-	return int(commandTag.RowsAffected()), err
 }
 
 // Close is a postgres helper function to close the connection to the database
