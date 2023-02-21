@@ -23,8 +23,14 @@ const (
 	defaultDBIp            = "127.0.0.1"
 	defaultDBSslMode       = "prefer"
 	defaultWebRootDir      = "goCloudK8sExampleFront/dist/"
-	yourOnlyUsername       = "bill"
-	yourOnlyFakeStupidPass = "board"
+	defaultUsername        = "bill"
+	defaultFakeStupidPass  = "board"
+	charsetUTF8            = "charset=UTF-8"
+	MIMEAppJSON            = "application/json"
+	MIMEHtml               = "text/html"
+	MIMEAppJSONCharsetUTF8 = MIMEAppJSON + "; " + charsetUTF8
+	MIMEHtmlCharsetUTF8    = MIMEHtml + "; " + charsetUTF8
+	HeaderContentType      = "Content-Type"
 )
 
 // content holds our static web server content.
@@ -44,12 +50,12 @@ type Service struct {
 // you should use the jwt token returned from LoginUser  in github.com/lao-tseu-is-alive/go-cloud-k8s-user-group'
 // and share the same secret with the above component
 func (s Service) login(ctx echo.Context) error {
-
+	s.Log.Printf("TRACE: entering login() \n##request: %+v \n", ctx.Request())
 	username := ctx.FormValue("login")
 	fakePassword := ctx.FormValue("pass")
 
 	// Throws unauthorized error
-	if username != yourOnlyUsername || fakePassword != yourOnlyFakeStupidPass {
+	if username != defaultUsername || fakePassword != defaultFakeStupidPass {
 		return ctx.JSON(http.StatusUnauthorized, "username not found or password invalid")
 	}
 
@@ -67,7 +73,7 @@ func (s Service) login(ctx echo.Context) error {
 		Id:       999,
 		Name:     "Bill Whatever",
 		Email:    "bill@whatever.com",
-		Username: yourOnlyUsername,
+		Username: defaultUsername,
 		IsAdmin:  false,
 	}
 
@@ -86,7 +92,7 @@ func (s Service) login(ctx echo.Context) error {
 }
 
 func (s Service) restricted(ctx echo.Context) error {
-	s.Log.Println("trace: entering restricted() ")
+	s.Log.Println("TRACE: entering restricted() ")
 	// get the current user from JWT TOKEN
 	u := ctx.Get("jwtdata").(*jwt.Token)
 	claims := goserver.JwtCustomClaims{}
@@ -170,7 +176,7 @@ func main() {
 	// now with restricted group reference you can here the routes defined in OpenApi users.yaml are registered
 	// yourModelEntityFromOpenApi.RegisterHandlers(r, &yourModelService)
 	r.GET("/secret", yourService.restricted)
-	loginExample := fmt.Sprintf("curl -v -X POST -d 'login=%s' -d 'pass=%s' http://localhost%s/login", yourOnlyUsername, yourOnlyFakeStupidPass, listenAddr)
+	loginExample := fmt.Sprintf("curl -v -X POST -d 'login=%s' -d 'pass=%s' http://localhost%s/login", defaultUsername, defaultFakeStupidPass, listenAddr)
 	getSecretExample := fmt.Sprintf(" curl -v  -H \"Authorization: Bearer ${TOKEN}\" http://localhost%s/api/secret |jq\n", listenAddr)
 	l.Printf("INFO: from another terminal just try :\n %s", loginExample)
 	l.Printf("INFO: then type export TOKEN=your_token_above_goes_here   \n %s", getSecretExample)

@@ -97,11 +97,12 @@ func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, con
 	/* will try a better way to handle 404 */
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
 		l.Printf("TRACE: in customHTTPErrorHandler got error: %v\n", err)
+		re := c.Request()
+		l.Printf("TRACE: customHTTPErrorHandler original failed request: %+v\n", re)
 		code := http.StatusInternalServerError
 		if he, ok := err.(*echo.HTTPError); ok {
 			code = he.Code
 		}
-		c.Logger().Error(err)
 		if code == 404 {
 			errorPage := fmt.Sprintf("%s/%d.html", webRootDir, code)
 			res, err := content.ReadFile(errorPage)
