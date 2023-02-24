@@ -2,13 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/labstack/echo/v4"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/database"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/gohttpclient"
 	"github.com/stretchr/testify/assert"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -31,112 +28,6 @@ type testStruct struct {
 	httpMethod     string
 	url            string
 	body           string
-}
-
-func TestService_login(t *testing.T) {
-	type fields struct {
-		Log         *log.Logger
-		dbConn      database.DB
-		JwtSecret   []byte
-		JwtDuration int
-	}
-	type args struct {
-		ctx echo.Context
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := Service{
-				Log:         tt.fields.Log,
-				dbConn:      tt.fields.dbConn,
-				JwtSecret:   tt.fields.JwtSecret,
-				JwtDuration: tt.fields.JwtDuration,
-			}
-			if err := s.login(tt.args.ctx); (err != nil) != tt.wantErr {
-				t.Errorf("login() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestService_restricted(t *testing.T) {
-	type fields struct {
-		Log         *log.Logger
-		dbConn      database.DB
-		JwtSecret   []byte
-		JwtDuration int
-	}
-	type args struct {
-		ctx echo.Context
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := Service{
-				Log:         tt.fields.Log,
-				dbConn:      tt.fields.dbConn,
-				JwtSecret:   tt.fields.JwtSecret,
-				JwtDuration: tt.fields.JwtDuration,
-			}
-			if err := s.restricted(tt.args.ctx); (err != nil) != tt.wantErr {
-				t.Errorf("restricted() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func Test_checkHealthy(t *testing.T) {
-	type args struct {
-		info string
-	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := checkHealthy(tt.args.info); got != tt.want {
-				t.Errorf("checkHealthy() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_checkReady(t *testing.T) {
-	type args struct {
-		info string
-	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := checkReady(tt.args.info); got != tt.want {
-				t.Errorf("checkReady() = %v, want %v", got, tt.want)
-			}
-		})
-	}
 }
 
 // TestMainExec is instantiating the "real" main code using the env variable (in your .env files if you use the Makefile rule)
