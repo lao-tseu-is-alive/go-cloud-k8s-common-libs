@@ -21,6 +21,7 @@ type DB interface {
 	GetQueryString(sql string, arguments ...interface{}) (result string, err error)
 	GetVersion() (result string, err error)
 	GetPGConn() (Conn *pgxpool.Pool, err error)
+	DoesTableExist(schema, table string) (exist bool)
 	Close()
 }
 

@@ -90,9 +90,6 @@ func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, con
 	if err != nil {
 		l.Fatalf("💥💥 ERROR: 'in NewGoHttpServer config.GetJwtSecretFromEnv() got error: %v'\n", err)
 	}
-	if err != nil {
-		l.Fatalf("💥💥 ERROR: 'in NewGoHttpServer config.GetJwtDurationFromEnv() got error: %v'\n", err)
-	}
 	e.HideBanner = true
 	/* will try a better way to handle 404 */
 	e.HTTPErrorHandler = func(err error, c echo.Context) {

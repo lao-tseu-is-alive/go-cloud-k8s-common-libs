@@ -8,6 +8,7 @@ import (
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/database"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/goserver"
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/metadata"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/tools"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/version"
 	"log"
@@ -141,21 +142,23 @@ func main() {
 	if err != nil {
 		l.Fatalf("💥💥 error doing config.GetPgDbDsnUrlFromEnv. error: %v\n", err)
 	}
-	dbConn, err := database.GetInstance("pgx", dbDsn, runtime.NumCPU(), l)
+	db, err := database.GetInstance("pgx", dbDsn, runtime.NumCPU(), l)
 	if err != nil {
 		l.Fatalf("💥💥 error doing database.GetInstance(pgx, dbDsn  : %v\n", err)
 	}
-	defer dbConn.Close()
+	defer db.Close()
 
-	dbVersion, err := dbConn.GetVersion()
+	dbVersion, err := db.GetVersion()
 	if err != nil {
 		l.Fatalf("💥💥 error doing dbConn.GetVersion() : %v\n", err)
 	}
 	l.Printf("INFO: connected to DB version : %s", dbVersion)
 
+	metadata.CreateMetadataTableIfNeeded(db, l)
+
 	yourService := Service{
 		Log:         l,
-		dbConn:      dbConn,
+		dbConn:      db,
 		JwtSecret:   []byte(secret),
 		JwtDuration: tokenDuration,
 	}

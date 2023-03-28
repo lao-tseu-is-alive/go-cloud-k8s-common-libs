@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/metadata"
 	"log"
 )
 
 const getPGVersion = "SELECT version();"
+const getTableExists = "SELECT EXISTS(SELECT FROM information_schema.tables WHERE  table_schema = $1 AND table_name = $2) as exists;"
 
 type PgxDB struct {
 	Conn *pgxpool.Pool
@@ -48,25 +48,8 @@ func newPgxConn(dbConnectionString string, maxConnectionsInPool int, log *log.Lo
 			log.Fatalf("FATAL DB ERROR: testing db connection with : [%s] error: %s", getPGVersion, errPing)
 			return nil, errPing
 		}
-		var numberOfServicesSchema int
-		errMetaTable := connPool.QueryRow(context.Background(), metadata.CountMetaSQL).Scan(&numberOfServicesSchema)
-		if errMetaTable != nil {
-			log.Printf("WARNING: problem counting the rows in metadata table : %v", errMetaTable)
-			log.Printf("WARNING: database does not contain the metadata table, will try to create it  ! ")
-			commandTag, err := connPool.Exec(context.Background(), metadata.CreateMetaTable)
-			if err != nil {
-				log.Printf("ERROR: problem creating the metadata table : %v", err)
-				return nil, errors.New("unable to create the table «metadata» ")
-			}
-			log.Printf("SUCCESS: metadata table was created rows affected : %v", int(commandTag.RowsAffected()))
-		}
 
 		log.Printf("INFO: 'Postgres version: [%s]'", version)
-		if numberOfServicesSchema > 0 {
-			log.Printf("INFO: 'database contains %d service in metadata'", numberOfServicesSchema)
-		} else {
-			log.Printf("WARNING: 'database contains %d service in metadata'", numberOfServicesSchema)
-		}
 	}
 
 	psql.Conn = connPool
@@ -150,6 +133,15 @@ func (db *PgxDB) GetPGConn() (Conn *pgxpool.Pool, err error) {
 		return nil, errors.New("NOT CONNECTED TO DB")
 	}
 	return db.Conn, nil
+}
+
+func (db *PgxDB) DoesTableExist(schema, table string) (exist bool) {
+	tableExists, err := db.GetQueryBool(getTableExists, schema, table)
+	if err != nil {
+		db.log.Printf("error : DoesTableExist() GetQueryBool returned error:%v \n", err)
+		return false
+	}
+	return tableExists
 }
 
 // Close is a postgres helper function to close the connection to the database
