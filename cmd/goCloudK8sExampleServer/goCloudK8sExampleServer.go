@@ -131,11 +131,11 @@ func main() {
 	l.Printf("INFO: 'Repository url: https://%s'", version.REPOSITORY)
 	secret, err := config.GetJwtSecretFromEnv()
 	if err != nil {
-		l.Fatalf("💥💥 ERROR: 'in NewGoHttpServer config.GetJwtSecretFromEnv() got error: %v'\n", err)
+		l.Fatalf("💥💥 error doing config.GetJwtSecretFromEnv() error: %v'\n", err)
 	}
 	tokenDuration, err := config.GetJwtDurationFromEnv(60)
 	if err != nil {
-		l.Fatalf("💥💥 ERROR: 'in NewGoHttpServer config.GetJwtDurationFromEnv() got error: %v'\n", err)
+		l.Fatalf("💥💥 error doing config.GetJwtDurationFromEnv(60)  error: %v\n", err)
 	}
 	dbDsn, err := config.GetPgDbDsnUrlFromEnv(defaultDBIp, defaultDBPort,
 		tools.ToSnakeCase(version.APP), version.AppSnake, defaultDBSslMode)
@@ -144,17 +144,39 @@ func main() {
 	}
 	db, err := database.GetInstance("pgx", dbDsn, runtime.NumCPU(), l)
 	if err != nil {
-		l.Fatalf("💥💥 error doing database.GetInstance(pgx, dbDsn  : %v\n", err)
+		l.Fatalf("💥💥 error doing database.GetInstance(pgx ...) error: %v\n", err)
 	}
 	defer db.Close()
 
 	dbVersion, err := db.GetVersion()
 	if err != nil {
-		l.Fatalf("💥💥 error doing dbConn.GetVersion() : %v\n", err)
+		l.Fatalf("💥💥 error doing dbConn.GetVersion() error: %v\n", err)
 	}
 	l.Printf("INFO: connected to DB version : %s", dbVersion)
 
-	metadata.CreateMetadataTableIfNeeded(db, l)
+	metadataService := metadata.Service{
+		Log: l,
+		Db:  db,
+	}
+
+	err = metadataService.CreateMetadataTableIfNeeded()
+	if err != nil {
+		l.Fatalf("💥💥 error doing metadataService.CreateMetadataTableIfNeeded  error: %v\n", err)
+	}
+
+	found, ver, err := metadataService.GetServiceVersion(version.APP)
+	if err != nil {
+		l.Fatalf("💥💥 error doing metadataService.CreateMetadataTableIfNeeded  error: %v\n", err)
+	}
+	if found {
+		l.Printf("info: service %s was found in metadata with version: %s", version.APP, ver)
+	} else {
+		l.Printf("info: service %s was not found in metadata", version.APP)
+	}
+	err = metadataService.SetServiceVersion(version.APP, version.VERSION)
+	if err != nil {
+		l.Fatalf("💥💥 error doing metadataService.SetServiceVersion  error: %v\n", err)
+	}
 
 	yourService := Service{
 		Log:         l,
@@ -165,7 +187,7 @@ func main() {
 
 	listenAddr, err := config.GetPortFromEnv(defaultPort)
 	if err != nil {
-		l.Fatalf("💥💥 ERROR: 'calling GetPortFromEnv got error: %v'\n", err)
+		l.Fatalf("💥💥 error doing config.GetPortFromEnv got error: %v'\n", err)
 	}
 	l.Printf("INFO: 'Will start HTTP server listening on port %s'", listenAddr)
 	server := goserver.NewGoHttpServer(listenAddr, l, defaultWebRootDir, content, "/api")
@@ -186,7 +208,6 @@ func main() {
 
 	err = server.StartServer()
 	if err != nil {
-		l.Fatalf("💥💥 ERROR: 'calling echo.Start(%s) got error: %v'\n", listenAddr, err)
+		l.Fatalf("💥💥 error doing server.StartServer error: %v'\n", err)
 	}
-
 }
