@@ -17,3 +17,4 @@
 .idea
 /.env
 /NOT_READY_YET/storage/storage.go
+/goCloudK8sCommonLibs.conf
