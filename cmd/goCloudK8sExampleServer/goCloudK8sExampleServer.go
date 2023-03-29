@@ -4,6 +4,9 @@ import (
 	"embed"
 	"fmt"
 	"github.com/cristalhq/jwt/v4"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/pgx"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/labstack/echo/v4"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/database"
@@ -15,29 +18,37 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 )
 
 const (
-	defaultPort            = 8080
-	defaultDBPort          = 5432
-	defaultDBIp            = "127.0.0.1"
-	defaultDBSslMode       = "prefer"
-	defaultWebRootDir      = "goCloudK8sExampleFront/dist/"
-	defaultUsername        = "bill"
-	defaultFakeStupidPass  = "board"
-	charsetUTF8            = "charset=UTF-8"
-	MIMEAppJSON            = "application/json"
-	MIMEHtml               = "text/html"
-	MIMEAppJSONCharsetUTF8 = MIMEAppJSON + "; " + charsetUTF8
-	MIMEHtmlCharsetUTF8    = MIMEHtml + "; " + charsetUTF8
-	HeaderContentType      = "Content-Type"
+	defaultPort                = 8080
+	defaultDBPort              = 5432
+	defaultDBIp                = "127.0.0.1"
+	defaultDBSslMode           = "prefer"
+	defaultWebRootDir          = "goCloudK8sExampleFront/dist/"
+	defaultSqlDbMigrationsPath = "db/migrations"
+	defaultUsername            = "bill"
+	defaultFakeStupidPass      = "board"
+	charsetUTF8                = "charset=UTF-8"
+	MIMEAppJSON                = "application/json"
+	MIMEHtml                   = "text/html"
+	MIMEAppJSONCharsetUTF8     = MIMEAppJSON + "; " + charsetUTF8
+	MIMEHtmlCharsetUTF8        = MIMEHtml + "; " + charsetUTF8
+	HeaderContentType          = "Content-Type"
 )
 
 // content holds our static web server content.
 //
 //go:embed goCloudK8sExampleFront/dist/*
 var content embed.FS
+
+// sqlMigrations holds our db migrations sql files using https://github.com/golang-migrate/migrate
+// in the line above you SHOULD have the same path  as const defaultSqlDbMigrationsPath
+//
+//go:embed db/migrations/*.sql
+var sqlMigrations embed.FS
 
 type Service struct {
 	Log *log.Logger
@@ -176,6 +187,21 @@ func main() {
 	err = metadataService.SetServiceVersion(version.APP, version.VERSION)
 	if err != nil {
 		l.Fatalf("💥💥 error doing metadataService.SetServiceVersion  error: %v\n", err)
+	}
+	// example of go-migrate db migration with embed files in go program
+	// https://github.com/golang-migrate/migrate
+	// https://github.com/golang-migrate/migrate/blob/master/database/postgres/TUTORIAL.md
+	d, err := iofs.New(sqlMigrations, defaultSqlDbMigrationsPath)
+	if err != nil {
+		l.Fatalf("💥💥 error doing iofs.New for db migrations  error: %v\n", err)
+	}
+	m, err := migrate.NewWithSourceInstance("iofs", d, strings.Replace(dbDsn, "postgres", "pgx", 1))
+	if err != nil {
+		l.Fatalf("💥💥 error doing migrate.NewWithSourceInstance(iofs, dbURL:%s)  error: %v\n", dbDsn, err)
+	}
+	err = m.Up()
+	if err != nil {
+		l.Fatalf("💥💥 error doing migrate.Up error: %v\n", err)
 	}
 
 	yourService := Service{
