@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/database"
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/goserver"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/metadata"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/tools"
@@ -137,9 +138,20 @@ func checkHealthy(info string) bool {
 }
 
 func main() {
-	l := log.New(os.Stdout, fmt.Sprintf("%s ", version.APP), log.Ldate|log.Ltime|log.Lshortfile)
-	l.Printf("INFO: 'Starting %s v:%s  rev:%s  build: %s'", version.APP, version.VERSION, version.REVISION, version.BuildStamp)
+	prefix := fmt.Sprintf("%s ", version.APP)
+	l := log.New(os.Stdout, prefix, log.Ldate|log.Ltime|log.Lshortfile)
+	ls, err := golog.NewLogger("zap", golog.InfoLevel, prefix)
+	if err != nil {
+		l.Fatal("💥💥 error log.NewLogger error: %v'\n", err)
+	}
+	//l.Printf("INFO: 'Starting %s v:%s  rev:%s  build: %s'", version.APP, version.VERSION, version.REVISION, version.BuildStamp)
+	ls.Debug("Starting %s v:%s", version.APP, version.VERSION)
+	ls.Info("Starting %s v:%s", version.APP, version.VERSION)
+	ls.Warn("Starting %s v:%s", version.APP, version.VERSION)
+	ls.Error("Starting %s v:%s", version.APP, version.VERSION)
+	//ls.Fatal("Ending  %s v:%s", version.APP, version.VERSION)
 	l.Printf("INFO: 'Repository url: https://%s'", version.REPOSITORY)
+	ls.Info("Repository url: https://%s", version.REPOSITORY)
 	secret, err := config.GetJwtSecretFromEnv()
 	if err != nil {
 		l.Fatalf("💥💥 error doing config.GetJwtSecretFromEnv() error: %v'\n", err)
@@ -199,8 +211,10 @@ func main() {
 	if err != nil {
 		l.Fatalf("💥💥 error doing migrate.NewWithSourceInstance(iofs, dbURL:%s)  error: %v\n", dbDsn, err)
 	}
+
 	err = m.Up()
 	if err != nil {
+		//if err == m.
 		l.Fatalf("💥💥 error doing migrate.Up error: %v\n", err)
 	}
 
