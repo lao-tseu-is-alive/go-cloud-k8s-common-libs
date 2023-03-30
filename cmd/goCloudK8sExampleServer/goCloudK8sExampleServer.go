@@ -215,7 +215,9 @@ func main() {
 	err = m.Up()
 	if err != nil {
 		//if err == m.
-		l.Fatalf("💥💥 error doing migrate.Up error: %v\n", err)
+		if err != migrate.ErrNoChange {
+			l.Fatalf("💥💥 error doing migrate.Up error: %v\n", err)
+		}
 	}
 
 	yourService := Service{
