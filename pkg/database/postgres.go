@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"log"
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 )
 
 const getPGVersion = "SELECT version();"
@@ -14,10 +14,10 @@ const getTableExists = "SELECT EXISTS(SELECT FROM information_schema.tables WHER
 
 type PgxDB struct {
 	Conn *pgxpool.Pool
-	log  *log.Logger
+	log  golog.MyLogger
 }
 
-func newPgxConn(dbConnectionString string, maxConnectionsInPool int, log *log.Logger) (DB, error) {
+func newPgxConn(dbConnectionString string, maxConnectionsInPool int, log golog.MyLogger) (DB, error) {
 	var psql PgxDB
 	var parsedConfig *pgx.ConnConfig
 	var err error
@@ -36,20 +36,20 @@ func newPgxConn(dbConnectionString string, maxConnectionsInPool int, log *log.Lo
 
 	connPool, err := pgxpool.Connect(context.Background(), dsn)
 	if err != nil {
-		log.Printf("ERROR: FAILED to connect to database %s with user %s\n", dbName, dbUser)
+		log.Error("FAILED to connect to database %s with user %s", dbName, dbUser)
 		return nil, errors.New(fmt.Sprintf("error connecting to database. err : %s", err))
 	} else {
-		log.Printf("INFO: 'SUCCESS connecting to database %s with user %s'\n", dbName, dbUser)
+		log.Info("SUCCESS connecting to database %s with user %s", dbName, dbUser)
 		// let's first check that we can really make a query by querying the postgres version
 		var version string
 		errPing := connPool.QueryRow(context.Background(), getPGVersion).Scan(&version)
 		if errPing != nil {
-			log.Printf("Hoho something very weird is occurring here... this db connection is invalid ! ")
-			log.Fatalf("FATAL DB ERROR: testing db connection with : [%s] error: %s", getPGVersion, errPing)
+			log.Info("something very weird is occurring here... this db connection is probably invalid ! ")
+			log.Fatal("got db error retrieving postgres version with : [%s] error: %s", getPGVersion, errPing)
 			return nil, errPing
 		}
 
-		log.Printf("INFO: 'Postgres version: [%s]'", version)
+		log.Info("Postgres version: [%s]'", version)
 	}
 
 	psql.Conn = connPool
@@ -61,7 +61,7 @@ func newPgxConn(dbConnectionString string, maxConnectionsInPool int, log *log.Lo
 func (db *PgxDB) ExecActionQuery(sql string, arguments ...interface{}) (rowsAffected int, err error) {
 	commandTag, err := db.Conn.Exec(context.Background(), sql, arguments...)
 	if err != nil {
-		db.log.Printf("ExecActionQuery unexpectedly failed with sql: %v . Args(%+v), error : %v", sql, arguments, err)
+		db.log.Error("ExecActionQuery unexpectedly failed with sql: %v . Args(%+v), error : %v", sql, arguments, err)
 		return 0, err
 	}
 	return int(commandTag.RowsAffected()), err
@@ -71,7 +71,7 @@ func (db *PgxDB) Insert(sql string, arguments ...interface{}) (lastInsertId int,
 	sql4PGX := fmt.Sprintf("%s RETURNING id;", sql)
 	err = db.Conn.QueryRow(context.Background(), sql4PGX, arguments...).Scan(&lastInsertId)
 	if err != nil {
-		db.log.Printf("ERROR: Insert unexpectedly failed with %v: (%v), error : %v", sql, arguments, err)
+		db.log.Error(" Insert unexpectedly failed with %v: (%v), error : %v", sql, arguments, err)
 		return 0, err
 	}
 	return lastInsertId, err
@@ -81,7 +81,7 @@ func (db *PgxDB) Insert(sql string, arguments ...interface{}) (lastInsertId int,
 func (db *PgxDB) GetQueryInt(sql string, arguments ...interface{}) (result int, err error) {
 	err = db.Conn.QueryRow(context.Background(), sql, arguments...).Scan(&result)
 	if err != nil {
-		db.log.Printf("error : GetQueryInt(%s) queryRow unexpectedly failed. args : (%v), error : %v\n", sql, arguments, err)
+		db.log.Error(" GetQueryInt(%s) queryRow unexpectedly failed. args : (%v), error : %v\n", sql, arguments, err)
 		return 0, err
 	}
 	return result, err
@@ -91,7 +91,7 @@ func (db *PgxDB) GetQueryInt(sql string, arguments ...interface{}) (result int, 
 func (db *PgxDB) GetQueryBool(sql string, arguments ...interface{}) (result bool, err error) {
 	err = db.Conn.QueryRow(context.Background(), sql, arguments...).Scan(&result)
 	if err != nil {
-		db.log.Printf("error : GetQueryBool(%s) queryRow unexpectedly failed. args : (%v), error : %v\n", sql, arguments, err)
+		db.log.Error(" GetQueryBool(%s) queryRow unexpectedly failed. args : (%v), error : %v\n", sql, arguments, err)
 		return false, err
 	}
 	return result, err
@@ -101,11 +101,11 @@ func (db *PgxDB) GetQueryString(sql string, arguments ...interface{}) (result st
 	var mayBeResultIsNull *string
 	err = db.Conn.QueryRow(context.Background(), sql, arguments...).Scan(&mayBeResultIsNull)
 	if err != nil {
-		db.log.Printf("error : GetQueryString(%s) queryRow unexpectedly failed. args : (%v), error : %v\n", sql, arguments, err)
+		db.log.Error(" GetQueryString(%s) queryRow unexpectedly failed. args : (%v), error : %v\n", sql, arguments, err)
 		return "", err
 	}
 	if mayBeResultIsNull == nil {
-		db.log.Printf("error : GetQueryString() queryRow returned no results with sql: %v ; parameters:(%v)\n", sql, arguments)
+		db.log.Error(" GetQueryString() queryRow returned no results with sql: %v ; parameters:(%v)\n", sql, arguments)
 		return "", ErrNoRecordFound
 	}
 	result = *mayBeResultIsNull
@@ -116,11 +116,11 @@ func (db *PgxDB) GetVersion() (result string, err error) {
 	var mayBeResultIsNull *string
 	err = db.Conn.QueryRow(context.Background(), getPGVersion).Scan(&mayBeResultIsNull)
 	if err != nil {
-		db.log.Printf("error : GetVersion() queryRow unexpectedly failed. error : %v\n", err)
+		db.log.Error(" GetVersion() queryRow unexpectedly failed. error : %v\n", err)
 		return "", err
 	}
 	if mayBeResultIsNull == nil {
-		db.log.Print("error : GetVersion() queryRow returned no results \n")
+		db.log.Error("GetVersion() queryRow returned no results \n")
 		return "", ErrNoRecordFound
 	}
 	result = *mayBeResultIsNull
@@ -138,7 +138,7 @@ func (db *PgxDB) GetPGConn() (Conn *pgxpool.Pool, err error) {
 func (db *PgxDB) DoesTableExist(schema, table string) (exist bool) {
 	tableExists, err := db.GetQueryBool(getTableExists, schema, table)
 	if err != nil {
-		db.log.Printf("error : DoesTableExist() GetQueryBool returned error:%v \n", err)
+		db.log.Error(" DoesTableExist() GetQueryBool returned error:%v \n", err)
 		return false
 	}
 	return tableExists

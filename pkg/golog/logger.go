@@ -1,11 +1,14 @@
 package golog
 
+import "log"
+
 type MyLogger interface {
 	Debug(msg string, v ...interface{})
 	Info(msg string, v ...interface{})
 	Warn(msg string, v ...interface{})
 	Error(msg string, v ...interface{})
 	Fatal(msg string, v ...interface{})
+	GetDefaultLogger() (*log.Logger, error)
 }
 
 type Level int8

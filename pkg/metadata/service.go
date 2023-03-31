@@ -2,13 +2,13 @@ package metadata
 
 import (
 	"errors"
-	"log"
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 	"strings"
 )
 import "github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/database"
 
 type Service struct {
-	Log *log.Logger
+	Log golog.MyLogger
 	Db  database.DB
 }
 
@@ -42,84 +42,84 @@ func (s *Service) CreateMetadataTableIfNeeded() error {
 	if s.Db.DoesTableExist(defaultSchema, MetaTableName) {
 		numberOfServicesSchema, errMetaTable := s.Db.GetQueryInt(CountMetaSQL)
 		if errMetaTable != nil {
-			s.Log.Printf("WARNING: problem counting the rows in metadata table : %v\n", errMetaTable)
+			s.Log.Warn("problem counting the rows in metadata table : %v", errMetaTable)
 		}
 		if numberOfServicesSchema > 0 {
-			s.Log.Printf("INFO: database contains %d service(s) in metadata\n", numberOfServicesSchema)
+			s.Log.Info("database contains %d service(s) in metadata", numberOfServicesSchema)
 		} else {
-			s.Log.Print("WARNING: database does not contain any  registered service in metadata table")
+			s.Log.Warn("database does not contain any  registered service in metadata table")
 		}
 		return nil
 	} else {
-		s.Log.Printf("WARNING: database does not contain the metadata table, will try to create it...\n")
+		s.Log.Warn("database does not contain the metadata table, will try to create it...")
 
 		RowsAffected, err := s.Db.ExecActionQuery(CreateMetaTable)
 		if err != nil {
-			s.Log.Printf("ERROR: problem creating the metadata table : %v\n", err)
+			s.Log.Error("problem creating the metadata table : %v", err)
 			return errors.New("unable to create the table «metadata»")
 		}
-		s.Log.Printf("SUCCESS: metadata table was created, rows affected : %v\n", int(RowsAffected))
+		s.Log.Info("metadata table was created, rows affected : %v", int(RowsAffected))
 		return nil
 	}
 }
 
 // GetServiceVersion allows to retrieve the version of the microservice registered (if any) in the metadata table of the db
 func (s *Service) GetServiceVersion(serviceName string) (found bool, version string, err error) {
-	s.Log.Printf("trace : entering GetServiceVersion(%s)", serviceName)
+	s.Log.Debug("entering GetServiceVersion(%s)", serviceName)
 	count, err := s.Db.GetQueryInt(countMetaServiceSQL, serviceName)
 	if err != nil {
-		s.Log.Printf("error: GetServiceVersion(%s) could not be retrieved from DB. failed db.Query err: %v", serviceName, err)
+		s.Log.Error("GetServiceVersion(%s) could not be retrieved from DB. failed db.Query err: %v", serviceName, err)
 		return false, "", err
 	}
 	if count > 0 {
-		s.Log.Printf("info : GetServiceVersion(%s) service does exist\n", serviceName)
+		s.Log.Info("GetServiceVersion(%s) service does exist", serviceName)
 		version, err := s.Db.GetQueryString(getVersionServiceSQL, serviceName)
 		if err != nil {
-			s.Log.Printf("error: GetServiceVersion(%s) version could not be retrieved from DB. failed db.Query err: %v", serviceName, err)
+			s.Log.Error("GetServiceVersion(%s) version could not be retrieved from DB. failed db.Query err: %v", serviceName, err)
 			return true, "", err
 		}
 		return true, version, nil
 	} else {
-		s.Log.Printf("info : GetServiceVersion(%s) service does not exist\n", serviceName)
+		s.Log.Info("GetServiceVersion(%s) service does not exist", serviceName)
 		return false, "", nil
 	}
 }
 
 // SetServiceVersion allows to insert/update the version of the microservice registered (if any) in the metadata table of the db
 func (s *Service) SetServiceVersion(serviceName, version string) error {
-	s.Log.Printf("trace : entering SetServiceVersion(%s, %s)", serviceName, version)
+	s.Log.Debug("entering SetServiceVersion(%s, %s)", serviceName, version)
 	count, err := s.Db.GetQueryInt(countMetaServiceSQL, serviceName)
 	if err != nil {
-		s.Log.Printf("error: SetServiceVersion(%s) could not be retrieved from DB. failed db.Query err: %v", serviceName, err)
+		s.Log.Error("SetServiceVersion(%s) could not be retrieved from DB. failed db.Query err: %v", serviceName, err)
 		return err
 	}
 	if count > 0 {
-		s.Log.Printf("info : GetServiceVersion(%s) service does exist\n", serviceName)
+		s.Log.Info("GetServiceVersion(%s) service does exist", serviceName)
 		versionInDB, err := s.Db.GetQueryString(getVersionServiceSQL, serviceName)
 		if err != nil {
-			s.Log.Printf("error: SetServiceVersion(%s) version could not be retrieved from DB. failed db.Query err: %v", serviceName, err)
+			s.Log.Error("SetServiceVersion(%s) version could not be retrieved from DB. failed db.Query err: %v", serviceName, err)
 			return err
 		}
 		if versionInDB == version {
-			s.Log.Printf("info : SetServiceVersion(%s) service does already exist with this version, nothing to do\n", serviceName)
+			s.Log.Info("SetServiceVersion(%s) service does already exist with this version, nothing to do", serviceName)
 			return nil
 		} else {
 			rowsAffected, err := s.Db.ExecActionQuery(updateVersionServiceSQL, serviceName, version)
 			if err != nil {
-				s.Log.Printf("error: SetServiceVersion(%s) version could not be updated in DB. failed db.Query err: %v", serviceName, err)
+				s.Log.Error("SetServiceVersion(%s) version could not be updated in DB. failed db.Query err: %v", serviceName, err)
 				return err
 			}
-			s.Log.Printf("info : SetServiceVersion(%s) service updated to version: %s (%d rows)\n", serviceName, version, rowsAffected)
+			s.Log.Info("SetServiceVersion(%s) service updated to version: %s (%d rows)", serviceName, version, rowsAffected)
 			return nil
 		}
 	} else {
-		s.Log.Printf("info : SetServiceVersion(%s) service does not exist will insert it\n", serviceName)
+		s.Log.Info("SetServiceVersion(%s) service does not exist will insert it", serviceName)
 		rowsAffected, err := s.Db.ExecActionQuery(insertMetaSQL, serviceName, defaultSchema, strings.ToLower(serviceName), version)
 		if err != nil {
-			s.Log.Printf("error: SetServiceVersion(%s) version could not be inserted in DB. failed db.Query err: %v", serviceName, err)
+			s.Log.Error("SetServiceVersion(%s) version could not be inserted in DB. failed db.Query err: %v", serviceName, err)
 			return err
 		}
-		s.Log.Printf("info : SetServiceVersion(%s) service inserted with version: %s (%d rows)\n", serviceName, version, rowsAffected)
+		s.Log.Info("SetServiceVersion(%s) service inserted with version: %s (%d rows)", serviceName, version, rowsAffected)
 		return nil
 	}
 }

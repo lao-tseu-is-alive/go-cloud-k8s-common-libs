@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"log"
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 )
 
 var (
@@ -30,7 +30,7 @@ func GetErrorF(errMsg string, err error) error {
 }
 
 // GetInstance with appropriate driver
-func GetInstance(dbDriver, dbConnectionString string, maxConnectionCount int, log *log.Logger) (DB, error) {
+func GetInstance(dbDriver, dbConnectionString string, maxConnectionCount int, log golog.MyLogger) (DB, error) {
 	var err error
 	var db DB
 

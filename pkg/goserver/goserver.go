@@ -11,6 +11,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 	"log"
 	"net/http"
 	"os"
@@ -25,8 +26,8 @@ const (
 	defaultReadTimeout     = 10 * time.Second // max time to read request from the client
 	defaultWriteTimeout    = 10 * time.Second // max time to write response to the client
 	defaultIdleTimeout     = 2 * time.Minute  // max time for connections using TCP Keep-Alive
-	initCallMsg            = "INITIAL CALL TO %s()\n"
-	formatTraceRequest     = "TRACE: [%s] %s  path:'%s', RemoteAddrIP: [%s], msg: %s, val: %v\n"
+	initCallMsg            = "INITIAL CALL TO %s()"
+	formatTraceRequest     = "TRACE: [%s] %s  path:'%s', RemoteAddrIP: [%s], msg: %s, val: %v"
 )
 
 // JwtCustomClaims are custom claims extending default ones.
@@ -46,7 +47,7 @@ type FuncAreWeHealthy func(msg string) bool
 // GoHttpServer is a struct type to store information related to all handlers of web server
 type GoHttpServer struct {
 	listenAddress string
-	logger        *log.Logger
+	log           golog.MyLogger
 	e             *echo.Echo
 	r             *echo.Group // // Restricted group
 	router        *http.ServeMux
@@ -62,7 +63,7 @@ func waitForShutdownToExit(srv *http.Server, secondsToWait time.Duration) {
 	// Block until a signal is received.
 	// wait for SIGINT (interrupt) 	: ctrl + C keypress, or in a shell : kill -SIGINT processId
 	sig := <-interruptChan
-	srv.ErrorLog.Printf("INFO: 'SIGINT %d interrupt signal received, about to shut down server after max %v seconds...'\n", sig, secondsToWait.Seconds())
+	srv.ErrorLog.Printf("INFO: 'SIGINT %d interrupt signal received, about to shut down server after max %v seconds...'", sig, secondsToWait.Seconds())
 
 	// create a deadline to wait for.
 	ctx, cancel := context.WithTimeout(context.Background(), secondsToWait)
@@ -71,7 +72,7 @@ func waitForShutdownToExit(srv *http.Server, secondsToWait time.Duration) {
 	// as long as the actives connections last less than shutDownTimeout
 	// https://pkg.go.dev/net/http#Server.Shutdown
 	if err := srv.Shutdown(ctx); err != nil {
-		srv.ErrorLog.Printf("💥💥 ERROR: 'Problem doing Shutdown %v'\n", err)
+		srv.ErrorLog.Printf("💥💥 ERROR: 'Problem doing Shutdown %v'", err)
 	}
 	<-ctx.Done()
 	srv.ErrorLog.Println("INFO: 'Server gracefully stopped, will exit'")
@@ -79,7 +80,7 @@ func waitForShutdownToExit(srv *http.Server, secondsToWait time.Duration) {
 }
 
 // NewGoHttpServer is a constructor that initializes the server,routes and all fields in GoHttpServer type
-func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, content embed.FS, restrictedUrl string) *GoHttpServer {
+func NewGoHttpServer(listenAddress string, l golog.MyLogger, webRootDir string, content embed.FS, restrictedUrl string) *GoHttpServer {
 	myServerMux := http.NewServeMux()
 
 	e := echo.New()
@@ -88,14 +89,14 @@ func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, con
 	signingKey, err := config.GetJwtSecretFromEnv()
 	JwtSecret := []byte(signingKey)
 	if err != nil {
-		l.Fatalf("💥💥 ERROR: 'in NewGoHttpServer config.GetJwtSecretFromEnv() got error: %v'\n", err)
+		l.Fatal("💥💥 ERROR: 'in NewGoHttpServer config.GetJwtSecretFromEnv() got error: %v'", err)
 	}
 	e.HideBanner = true
 	/* will try a better way to handle 404 */
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
-		l.Printf("TRACE: in customHTTPErrorHandler got error: %v\n", err)
+		l.Debug("in customHTTPErrorHandler got error: %v", err)
 		re := c.Request()
-		l.Printf("TRACE: customHTTPErrorHandler original failed request: %+v\n", re)
+		l.Debug("customHTTPErrorHandler original failed request: %+v", re)
 		code := http.StatusInternalServerError
 		if he, ok := err.(*echo.HTTPError); ok {
 			code = he.Code
@@ -104,10 +105,10 @@ func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, con
 			errorPage := fmt.Sprintf("%s/%d.html", webRootDir, code)
 			res, err := content.ReadFile(errorPage)
 			if err != nil {
-				l.Printf("💥💥 ERROR: 'in  content.ReadFile(%s) got error: %v'\n", errorPage, err)
+				l.Error("in  content.ReadFile(%s) got error: %v", errorPage, err)
 			}
 			if err := c.HTMLBlob(code, res); err != nil {
-				l.Printf("💥💥 ERROR: 'in  c.HTMLBlob(%d, %s) got error: %v'\n", code, res, err)
+				l.Error("in  c.HTMLBlob(%d, %s) got error: %v", code, res, err)
 				c.Logger().Error(err)
 			}
 		} else {
@@ -141,12 +142,12 @@ func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, con
 				return nil, err
 			}
 
-			l.Printf("INFO : JWT ParseTokenFunc, Algorithm %v\n", token.Header().Algorithm)
-			l.Printf("INFO : JWT ParseTokenFunc, Type      %v\n", token.Header().Type)
-			l.Printf("INFO : JWT ParseTokenFunc, Claims    %v\n", string(token.Claims()))
-			l.Printf("INFO : JWT ParseTokenFunc, Payload   %v\n", string(token.PayloadPart()))
-			l.Printf("INFO : JWT ParseTokenFunc, Token     %v\n", string(token.Bytes()))
-			l.Printf("INFO : JWT ParseTokenFunc, ParseTokenFunc : Claims:    %+v\n", string(token.Claims()))
+			l.Debug("JWT ParseTokenFunc, Algorithm %v", token.Header().Algorithm)
+			l.Debug("JWT ParseTokenFunc, Type      %v", token.Header().Type)
+			l.Debug("JWT ParseTokenFunc, Claims    %v", string(token.Claims()))
+			l.Debug("JWT ParseTokenFunc, Payload   %v", string(token.PayloadPart()))
+			l.Debug("JWT ParseTokenFunc, Token     %v", string(token.Bytes()))
+			l.Debug("JWT ParseTokenFunc, ParseTokenFunc : Claims:    %+v", string(token.Claims()))
 			if newClaims.IsValidAt(time.Now()) {
 				claims := JwtCustomClaims{}
 				err := token.DecodeClaims(&claims)
@@ -161,10 +162,10 @@ func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, con
 				//} else {
 				// return nil, errors.New("token invalid because user account has been deactivated")
 				//}
-				//l.Printf("💥💥 ERROR: 'in  content.ReadFile(%s) got error: %v'\n", errorPage, err)
+				//l.Printf("💥💥 ERROR: 'in  content.ReadFile(%s) got error: %v'", errorPage, err)
 				return token, nil // ALL IS GOOD HERE
 			} else {
-				l.Printf("ERROR : JWT ParseTokenFunc,  : IsValidAt(%+v)\n", time.Now())
+				l.Error("JWT ParseTokenFunc,  : IsValidAt(%+v)", time.Now())
 				return nil, errors.New("token has expired")
 			}
 
@@ -172,16 +173,23 @@ func NewGoHttpServer(listenAddress string, l *log.Logger, webRootDir string, con
 	}
 	r.Use(echojwt.WithConfig(config))
 
+	var defaultHttpLogger *log.Logger
+	defaultHttpLogger, err = l.GetDefaultLogger()
+	if err != nil {
+		// in case we cannot get a valid log.Logger for http let's create a reasonable one
+		defaultHttpLogger = log.New(os.Stderr, "NewGoHttpServer::defaultHttpLogger", log.Ldate|log.Ltime|log.Lshortfile)
+	}
+
 	myServer := GoHttpServer{
 		listenAddress: listenAddress,
-		logger:        l,
+		log:           l,
 		r:             r,
 		e:             e,
 		router:        myServerMux,
 		startTime:     time.Now(),
 		httpServer: http.Server{
 			Addr:         listenAddress,       // configure the bind address
-			ErrorLog:     l,                   // set the logger for the server
+			ErrorLog:     defaultHttpLogger,   // set the logger for the server
 			ReadTimeout:  defaultReadTimeout,  // max time to read request from the client
 			WriteTimeout: defaultWriteTimeout, // max time to write response to the client
 			IdleTimeout:  defaultIdleTimeout,  // max time for connections using TCP Keep-Alive
@@ -212,11 +220,11 @@ func (s *GoHttpServer) AddGetRoute(baseURL string, urlPath string, handler echo.
 
 func (s *GoHttpServer) GetReadinessHandler(readyFunc FuncAreWeReady, msg string) echo.HandlerFunc {
 	handlerName := "GetReadinessHandler"
-	s.logger.Printf(initCallMsg, handlerName)
+	s.log.Debug(initCallMsg, handlerName)
 	return echo.HandlerFunc(func(ctx echo.Context) error {
 		ready := readyFunc(msg)
 		r := ctx.Request()
-		s.logger.Printf(formatTraceRequest, handlerName, r.Method, r.URL.Path, r.RemoteAddr, msg, ready)
+		s.log.Debug(formatTraceRequest, handlerName, r.Method, r.URL.Path, r.RemoteAddr, msg, ready)
 		if ready {
 			msgOK := fmt.Sprintf("GetReadinessHandler: (%s) is ready: %#v ", msg, ready)
 			return ctx.JSON(http.StatusOK, msgOK)
@@ -228,11 +236,11 @@ func (s *GoHttpServer) GetReadinessHandler(readyFunc FuncAreWeReady, msg string)
 }
 func (s *GoHttpServer) GetHealthHandler(healthyFunc FuncAreWeHealthy, msg string) echo.HandlerFunc {
 	handlerName := "GetHealthHandler"
-	s.logger.Printf(initCallMsg, handlerName)
+	s.log.Debug(initCallMsg, handlerName)
 	return echo.HandlerFunc(func(ctx echo.Context) error {
 		healthy := healthyFunc(msg)
 		r := ctx.Request()
-		s.logger.Printf(formatTraceRequest, handlerName, r.Method, r.URL.Path, r.RemoteAddr, msg, healthy)
+		s.log.Debug(formatTraceRequest, handlerName, r.Method, r.URL.Path, r.RemoteAddr, msg, healthy)
 		if healthy {
 			msgOK := fmt.Sprintf("GetHealthHandler: (%s) is healthy: %#v ", msg, healthy)
 			return ctx.JSON(http.StatusOK, msgOK)
@@ -248,13 +256,13 @@ func (s *GoHttpServer) StartServer() error {
 
 	// Starting the web server in his own goroutine
 	go func() {
-		s.logger.Printf("INFO: Starting http server listening at %s://localhost%s/", defaultProtocol, s.listenAddress)
+		s.log.Info("starting http server listening at %s://localhost%s/", defaultProtocol, s.listenAddress)
 		err := s.e.StartServer(&s.httpServer)
 		if err != nil && err != http.ErrServerClosed {
-			s.logger.Fatalf("💥💥 ERROR: 'Could not listen on %q: %s'\n", s.listenAddress, err)
+			s.log.Fatal("💥💥 error could not listen on tcp port %q. error: %s", s.listenAddress, err)
 		}
 	}()
-	s.logger.Printf("Server listening on : %s PID:[%d]", s.httpServer.Addr, os.Getpid())
+	s.log.Debug("Server listening on : %s PID:[%d]", s.httpServer.Addr, os.Getpid())
 
 	// Graceful Shutdown on SIGINT (interrupt)
 	waitForShutdownToExit(&s.httpServer, secondsShutDownTimeout)

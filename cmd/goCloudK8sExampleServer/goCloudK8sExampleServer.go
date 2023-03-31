@@ -17,7 +17,6 @@ import (
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/version"
 	"log"
 	"net/http"
-	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -52,7 +51,7 @@ var content embed.FS
 var sqlMigrations embed.FS
 
 type Service struct {
-	Log *log.Logger
+	Log golog.MyLogger
 	//Store       Storage
 	dbConn      database.DB
 	JwtSecret   []byte
@@ -63,7 +62,7 @@ type Service struct {
 // you should use the jwt token returned from LoginUser  in github.com/lao-tseu-is-alive/go-cloud-k8s-user-group'
 // and share the same secret with the above component
 func (s Service) login(ctx echo.Context) error {
-	s.Log.Printf("TRACE: entering login() \n##request: %+v \n", ctx.Request())
+	s.Log.Debug("entering login() \n##request: %+v", ctx.Request())
 	username := ctx.FormValue("login")
 	fakePassword := ctx.FormValue("pass")
 
@@ -97,15 +96,14 @@ func (s Service) login(ctx echo.Context) error {
 	if err != nil {
 		return err
 	}
-	msg := fmt.Sprintf("LoginUser(%s) succesfull login for user id (%d)", claims.Username, claims.Id)
-	s.Log.Printf(msg)
+	s.Log.Info("LoginUser(%s) successful login for user id (%d)", claims.Username, claims.Id)
 	return ctx.JSON(http.StatusOK, echo.Map{
 		"token": token.String(),
 	})
 }
 
 func (s Service) restricted(ctx echo.Context) error {
-	s.Log.Println("TRACE: entering restricted() ")
+	s.Log.Debug("entering restricted() ")
 	// get the current user from JWT TOKEN
 	u := ctx.Get("jwtdata").(*jwt.Token)
 	claims := goserver.JwtCustomClaims{}
@@ -139,43 +137,42 @@ func checkHealthy(info string) bool {
 
 func main() {
 	prefix := fmt.Sprintf("%s ", version.APP)
-	l := log.New(os.Stdout, prefix, log.Ldate|log.Ltime|log.Lshortfile)
-	ls, err := golog.NewLogger("zap", golog.InfoLevel, prefix)
+	//l := log.New(os.Stdout, prefix, log.Ldate|log.Ltime|log.Lshortfile)
+	l, err := golog.NewLogger("zap", golog.DebugLevel, prefix)
 	if err != nil {
-		l.Fatal("💥💥 error log.NewLogger error: %v'\n", err)
+		log.Fatalf("💥💥 error log.NewLogger error: %v'\n", err)
 	}
-	//l.Printf("INFO: 'Starting %s v:%s  rev:%s  build: %s'", version.APP, version.VERSION, version.REVISION, version.BuildStamp)
-	ls.Debug("Starting %s v:%s", version.APP, version.VERSION)
-	ls.Info("Starting %s v:%s", version.APP, version.VERSION)
-	ls.Warn("Starting %s v:%s", version.APP, version.VERSION)
-	ls.Error("Starting %s v:%s", version.APP, version.VERSION)
+	//l.Info("'Starting %s v:%s  rev:%s  build: %s'", version.APP, version.VERSION, version.REVISION, version.BuildStamp)
+	l.Debug("Starting %s v:%s", version.APP, version.VERSION)
+	l.Info("Starting %s v:%s", version.APP, version.VERSION)
+	l.Warn("Starting %s v:%s", version.APP, version.VERSION)
+	l.Error("Starting %s v:%s", version.APP, version.VERSION)
 	//ls.Fatal("Ending  %s v:%s", version.APP, version.VERSION)
-	l.Printf("INFO: 'Repository url: https://%s'", version.REPOSITORY)
-	ls.Info("Repository url: https://%s", version.REPOSITORY)
+	l.Info("Repository: https://%s", version.REPOSITORY)
 	secret, err := config.GetJwtSecretFromEnv()
 	if err != nil {
-		l.Fatalf("💥💥 error doing config.GetJwtSecretFromEnv() error: %v'\n", err)
+		l.Fatal("💥💥 error doing config.GetJwtSecretFromEnv() error: %v", err)
 	}
 	tokenDuration, err := config.GetJwtDurationFromEnv(60)
 	if err != nil {
-		l.Fatalf("💥💥 error doing config.GetJwtDurationFromEnv(60)  error: %v\n", err)
+		l.Fatal("💥💥 error doing config.GetJwtDurationFromEnv(60)  error: %v", err)
 	}
 	dbDsn, err := config.GetPgDbDsnUrlFromEnv(defaultDBIp, defaultDBPort,
 		tools.ToSnakeCase(version.APP), version.AppSnake, defaultDBSslMode)
 	if err != nil {
-		l.Fatalf("💥💥 error doing config.GetPgDbDsnUrlFromEnv. error: %v\n", err)
+		l.Fatal("💥💥 error doing config.GetPgDbDsnUrlFromEnv. error: %v", err)
 	}
 	db, err := database.GetInstance("pgx", dbDsn, runtime.NumCPU(), l)
 	if err != nil {
-		l.Fatalf("💥💥 error doing database.GetInstance(pgx ...) error: %v\n", err)
+		l.Fatal("💥💥 error doing database.GetInstance(pgx ...) error: %v", err)
 	}
 	defer db.Close()
 
 	dbVersion, err := db.GetVersion()
 	if err != nil {
-		l.Fatalf("💥💥 error doing dbConn.GetVersion() error: %v\n", err)
+		l.Fatal("💥💥 error doing dbConn.GetVersion() error: %v", err)
 	}
-	l.Printf("INFO: connected to DB version : %s", dbVersion)
+	l.Info("connected to db version : %s", dbVersion)
 
 	metadataService := metadata.Service{
 		Log: l,
@@ -184,39 +181,39 @@ func main() {
 
 	err = metadataService.CreateMetadataTableIfNeeded()
 	if err != nil {
-		l.Fatalf("💥💥 error doing metadataService.CreateMetadataTableIfNeeded  error: %v\n", err)
+		l.Fatal("💥💥 error doing metadataService.CreateMetadataTableIfNeeded  error: %v", err)
 	}
 
 	found, ver, err := metadataService.GetServiceVersion(version.APP)
 	if err != nil {
-		l.Fatalf("💥💥 error doing metadataService.CreateMetadataTableIfNeeded  error: %v\n", err)
+		l.Fatal("💥💥 error doing metadataService.CreateMetadataTableIfNeeded  error: %v\n", err)
 	}
 	if found {
-		l.Printf("info: service %s was found in metadata with version: %s", version.APP, ver)
+		l.Info("service %s was found in metadata with version: %s", version.APP, ver)
 	} else {
-		l.Printf("info: service %s was not found in metadata", version.APP)
+		l.Info("service %s was not found in metadata", version.APP)
 	}
 	err = metadataService.SetServiceVersion(version.APP, version.VERSION)
 	if err != nil {
-		l.Fatalf("💥💥 error doing metadataService.SetServiceVersion  error: %v\n", err)
+		l.Fatal("💥💥 error doing metadataService.SetServiceVersion  error: %v\n", err)
 	}
 	// example of go-migrate db migration with embed files in go program
 	// https://github.com/golang-migrate/migrate
 	// https://github.com/golang-migrate/migrate/blob/master/database/postgres/TUTORIAL.md
 	d, err := iofs.New(sqlMigrations, defaultSqlDbMigrationsPath)
 	if err != nil {
-		l.Fatalf("💥💥 error doing iofs.New for db migrations  error: %v\n", err)
+		l.Fatal("💥💥 error doing iofs.New for db migrations  error: %v\n", err)
 	}
 	m, err := migrate.NewWithSourceInstance("iofs", d, strings.Replace(dbDsn, "postgres", "pgx", 1))
 	if err != nil {
-		l.Fatalf("💥💥 error doing migrate.NewWithSourceInstance(iofs, dbURL:%s)  error: %v\n", dbDsn, err)
+		l.Fatal("💥💥 error doing migrate.NewWithSourceInstance(iofs, dbURL:%s)  error: %v\n", dbDsn, err)
 	}
 
 	err = m.Up()
 	if err != nil {
 		//if err == m.
 		if err != migrate.ErrNoChange {
-			l.Fatalf("💥💥 error doing migrate.Up error: %v\n", err)
+			l.Fatal("💥💥 error doing migrate.Up error: %v\n", err)
 		}
 	}
 
@@ -229,9 +226,9 @@ func main() {
 
 	listenAddr, err := config.GetPortFromEnv(defaultPort)
 	if err != nil {
-		l.Fatalf("💥💥 error doing config.GetPortFromEnv got error: %v'\n", err)
+		l.Fatal("💥💥 error doing config.GetPortFromEnv got error: %v'\n", err)
 	}
-	l.Printf("INFO: 'Will start HTTP server listening on port %s'", listenAddr)
+	l.Info("'Will start HTTP server listening on port %s'", listenAddr)
 	server := goserver.NewGoHttpServer(listenAddr, l, defaultWebRootDir, content, "/api")
 	e := server.GetEcho()
 
@@ -244,12 +241,12 @@ func main() {
 	// yourModelEntityFromOpenApi.RegisterHandlers(r, &yourModelService)
 	r.GET("/secret", yourService.restricted)
 	loginExample := fmt.Sprintf("curl -v -X POST -d 'login=%s' -d 'pass=%s' http://localhost%s/login", defaultUsername, defaultFakeStupidPass, listenAddr)
-	getSecretExample := fmt.Sprintf(" curl -v  -H \"Authorization: Bearer ${TOKEN}\" http://localhost%s/api/secret |jq\n", listenAddr)
-	l.Printf("INFO: from another terminal just try :\n %s", loginExample)
-	l.Printf("INFO: then type export TOKEN=your_token_above_goes_here   \n %s", getSecretExample)
+	getSecretExample := fmt.Sprintf(" curl -v  -H \"Authorization: Bearer ${TOKEN}\" http://localhost%s/api/secret |jq", listenAddr)
+	l.Info("from another terminal just try :\n\t %s", loginExample)
+	l.Info("then after doing an export TOKEN=the_received_token_above_goes_here \n\t%s", getSecretExample)
 
 	err = server.StartServer()
 	if err != nil {
-		l.Fatalf("💥💥 error doing server.StartServer error: %v'\n", err)
+		l.Fatal("💥💥 error doing server.StartServer error: %v'\n", err)
 	}
 }
