@@ -12,6 +12,7 @@ import (
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/database"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/goserver"
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/info"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/metadata"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/tools"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/version"
@@ -27,6 +28,7 @@ const (
 	defaultDBPort              = 5432
 	defaultDBIp                = "127.0.0.1"
 	defaultDBSslMode           = "prefer"
+	defaultReadTimeout         = 10 * time.Second // max time to read request from the client
 	defaultWebRootDir          = "goCloudK8sExampleFront/dist/"
 	defaultSqlDbMigrationsPath = "db/migrations"
 	defaultUsername            = "bill"
@@ -215,6 +217,24 @@ func main() {
 		if err != migrate.ErrNoChange {
 			l.Fatal("💥💥 error doing migrate.Up error: %v\n", err)
 		}
+	}
+
+	// example of how to test if we are running inside kubernetes as a Pod
+	k8sVersion := ""
+	k8sCurrentNameSpace := ""
+	k8sUrl, err := info.GetKubernetesApiUrlFromEnv()
+	if err != nil {
+		l.Warn("💥💥 GetKubernetesApiUrlFromEnv() returned an error, are we really inside a k8s Pod ?? err : %+#v'", err)
+	} else {
+		// here we can assume that we are inside a k8s container...
+		k8sInfo, errConnInfo := info.GetKubernetesConnInfo(l, defaultReadTimeout)
+		if errConnInfo.Err != nil {
+			l.Error("💥💥 ERROR: 'GetKubernetesConnInfo() returned an error : %s : %+#v'", errConnInfo.Msg, errConnInfo.Err)
+		}
+		k8sVersion = k8sInfo.Version
+		k8sCurrentNameSpace = k8sInfo.CurrentNamespace
+		l.Info("Running as Pod inside Kubernetes version : %s, within namespace : %s ", k8sVersion, k8sCurrentNameSpace)
+		l.Info("Kubernetes API url : %s ", k8sUrl)
 	}
 
 	yourService := Service{
