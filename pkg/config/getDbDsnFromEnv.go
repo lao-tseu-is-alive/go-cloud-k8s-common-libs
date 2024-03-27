@@ -74,7 +74,6 @@ func GetPgDbDsnUrlFromEnv(defaultIP string, defaultPort int,
 	if exist {
 		dbSslMode = val
 	}
-	//"postgres://jack:secret@pg.example.com:5432/db?sslmode=verify-ca"
 	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		dbUser, dbPassword, srvIP, srvPort, dbName, dbSslMode), nil
 }

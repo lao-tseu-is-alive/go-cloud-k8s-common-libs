@@ -14,6 +14,7 @@ func TestGetPgDbDsnUrlFromEnv(t *testing.T) {
 		defaultDbPassword string
 		defaultSSL        string
 	}
+	const defaultIpLocalhost = "127.0.0.1"
 	tests := []struct {
 		name          string
 		args          args
@@ -30,7 +31,7 @@ func TestGetPgDbDsnUrlFromEnv(t *testing.T) {
 		{
 			name: "should return the default values when env variables are not set",
 			args: args{
-				defaultIP:         "127.0.0.1",
+				defaultIP:         defaultIpLocalhost,
 				defaultPort:       4444,
 				defaultDbName:     "toto",
 				defaultDbUser:     "tata",
@@ -50,7 +51,7 @@ func TestGetPgDbDsnUrlFromEnv(t *testing.T) {
 		{
 			name: "should return dsn from env variables, when they are set to valid values",
 			args: args{
-				defaultIP:         "127.0.0.1",
+				defaultIP:         defaultIpLocalhost,
 				defaultPort:       5432,
 				defaultDbName:     "todos",
 				defaultDbUser:     "todos",
@@ -70,7 +71,7 @@ func TestGetPgDbDsnUrlFromEnv(t *testing.T) {
 		{
 			name: "should return an empty string and report an error when PORT is not a number",
 			args: args{
-				defaultIP:         "127.0.0.1",
+				defaultIP:         defaultIpLocalhost,
 				defaultPort:       5432,
 				defaultDbName:     "todos",
 				defaultDbUser:     "todos",
@@ -90,7 +91,7 @@ func TestGetPgDbDsnUrlFromEnv(t *testing.T) {
 		{
 			name: "should return an empty string and report an error when PORT is < 1",
 			args: args{
-				defaultIP:         "127.0.0.1",
+				defaultIP:         defaultIpLocalhost,
 				defaultPort:       5432,
 				defaultDbName:     "todos",
 				defaultDbUser:     "todos",
@@ -110,7 +111,7 @@ func TestGetPgDbDsnUrlFromEnv(t *testing.T) {
 		{
 			name: "should return an empty string and report an error when SERVERIP is invalid",
 			args: args{
-				defaultIP:         "127.0.0.1",
+				defaultIP:         defaultIpLocalhost,
 				defaultPort:       5432,
 				defaultDbName:     "todos",
 				defaultDbUser:     "todos",
