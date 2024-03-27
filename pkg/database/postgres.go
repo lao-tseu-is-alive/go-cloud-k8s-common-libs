@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 )
 
@@ -34,7 +34,7 @@ func newPgxConn(dbConnectionString string, maxConnectionsInPool int, log golog.M
 
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s pool_max_conns=%d", dbHost, dbPort, dbUser, dbPass, dbName, maxConnectionsInPool)
 
-	connPool, err := pgxpool.Connect(context.Background(), dsn)
+	connPool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		log.Error("FAILED to connect to database %s with user %s", dbName, dbUser)
 		return nil, errors.New(fmt.Sprintf("error connecting to database. err : %s", err))
