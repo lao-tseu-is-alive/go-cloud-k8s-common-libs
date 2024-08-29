@@ -1,7 +1,7 @@
 package metadata
 
 import (
-	"errors"
+	"fmt"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 	"strings"
 )
@@ -35,10 +35,13 @@ CREATE TABLE IF NOT EXISTS go_metadata_db_schema
 );
 comment on table go_metadata_db_schema is 'to track version of schema of different micro services';
 `
+	unableToCountService = "💥💥 unable to count for service %s in the table «metadata». error:%v"
+	unableToGetVersion   = "💥💥 unable to retrieve version for service %s in the table «metadata». error:%v"
+	unableToSetVersion   = "💥💥 unable to set version for service %s in the table «metadata». error:%v"
 )
 
-// CreateMetadataTableIfNeeded create the metadata table if needed in the db
-func (s *Service) CreateMetadataTableIfNeeded() error {
+// CreateMetadataTableOrFail create the metadata table if it is not already present in the db
+func (s *Service) CreateMetadataTableOrFail() {
 	if s.Db.DoesTableExist(defaultSchema, MetaTableName) {
 		numberOfServicesSchema, errMetaTable := s.Db.GetQueryInt(CountMetaSQL)
 		if errMetaTable != nil {
@@ -49,77 +52,78 @@ func (s *Service) CreateMetadataTableIfNeeded() error {
 		} else {
 			s.Log.Warn("database does not contain any  registered service in metadata table")
 		}
-		return nil
+		return
 	} else {
 		s.Log.Warn("database does not contain the metadata table, will try to create it...")
 
 		RowsAffected, err := s.Db.ExecActionQuery(CreateMetaTable)
 		if err != nil {
 			s.Log.Error("problem creating the metadata table : %v", err)
-			return errors.New("unable to create the table «metadata»")
+			panic(fmt.Errorf("💥💥 unable to create the table «metadata». error:%v", err))
 		}
 		s.Log.Info("metadata table was created, rows affected : %v", int(RowsAffected))
-		return nil
+		return
 	}
 }
 
-// GetServiceVersion allows to retrieve the version of the microservice registered (if any) in the metadata table of the db
-func (s *Service) GetServiceVersion(serviceName string) (found bool, version string, err error) {
+// GetServiceVersionOrFail allows to retrieve the version of the microservice registered (if any) in the metadata table of the db
+func (s *Service) GetServiceVersionOrFail(serviceName string) (found bool, version string) {
 	s.Log.Debug("entering GetServiceVersion(%s)", serviceName)
 	count, err := s.Db.GetQueryInt(countMetaServiceSQL, serviceName)
 	if err != nil {
 		s.Log.Error("GetServiceVersion(%s) could not be retrieved from DB. failed db.Query err: %v", serviceName, err)
-		return false, "", err
+		panic(fmt.Errorf(unableToCountService, serviceName, err))
 	}
 	if count > 0 {
 		s.Log.Info("GetServiceVersion(%s) service does exist", serviceName)
 		version, err := s.Db.GetQueryString(getVersionServiceSQL, serviceName)
 		if err != nil {
 			s.Log.Error("GetServiceVersion(%s) version could not be retrieved from DB. failed db.Query err: %v", serviceName, err)
-			return true, "", err
+			panic(fmt.Errorf(unableToGetVersion, serviceName, err))
 		}
-		return true, version, nil
+		return true, version
 	} else {
 		s.Log.Info("GetServiceVersion(%s) service does not exist", serviceName)
-		return false, "", nil
+		return false, ""
 	}
 }
 
-// SetServiceVersion allows to insert/update the version of the microservice registered (if any) in the metadata table of the db
-func (s *Service) SetServiceVersion(serviceName, version string) error {
+// SetServiceVersionOrFail allows to insert/update the version of the microservice registered (if any) in the metadata table of the db
+func (s *Service) SetServiceVersionOrFail(serviceName, version string) {
 	s.Log.Debug("entering SetServiceVersion(%s, %s)", serviceName, version)
 	count, err := s.Db.GetQueryInt(countMetaServiceSQL, serviceName)
 	if err != nil {
 		s.Log.Error("SetServiceVersion(%s) could not be retrieved from DB. failed db.Query err: %v", serviceName, err)
-		return err
+		panic(fmt.Errorf(unableToCountService, serviceName, err))
 	}
 	if count > 0 {
 		s.Log.Info("GetServiceVersion(%s) service does exist", serviceName)
 		versionInDB, err := s.Db.GetQueryString(getVersionServiceSQL, serviceName)
 		if err != nil {
 			s.Log.Error("SetServiceVersion(%s) version could not be retrieved from DB. failed db.Query err: %v", serviceName, err)
-			return err
+
+			panic(fmt.Errorf(unableToGetVersion, serviceName, err))
 		}
 		if versionInDB == version {
 			s.Log.Info("SetServiceVersion(%s) service does already exist with this version, nothing to do", serviceName)
-			return nil
+			return
 		} else {
 			rowsAffected, err := s.Db.ExecActionQuery(updateVersionServiceSQL, serviceName, version)
 			if err != nil {
 				s.Log.Error("SetServiceVersion(%s) version could not be updated in DB. failed db.Query err: %v", serviceName, err)
-				return err
+				panic(fmt.Errorf(unableToSetVersion, serviceName, err))
 			}
 			s.Log.Info("SetServiceVersion(%s) service updated to version: %s (%d rows)", serviceName, version, rowsAffected)
-			return nil
+			return
 		}
 	} else {
 		s.Log.Info("SetServiceVersion(%s) service does not exist will insert it", serviceName)
 		rowsAffected, err := s.Db.ExecActionQuery(insertMetaSQL, serviceName, defaultSchema, strings.ToLower(serviceName), version)
 		if err != nil {
 			s.Log.Error("SetServiceVersion(%s) version could not be inserted in DB. failed db.Query err: %v", serviceName, err)
-			return err
+			panic(fmt.Errorf(unableToSetVersion, serviceName, err))
 		}
 		s.Log.Info("SetServiceVersion(%s) service inserted with version: %s (%d rows)", serviceName, version, rowsAffected)
-		return nil
+		return
 	}
 }

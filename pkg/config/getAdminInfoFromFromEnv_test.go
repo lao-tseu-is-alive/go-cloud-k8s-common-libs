@@ -6,114 +6,256 @@ import (
 )
 
 func TestGetAdminUserFromFromEnv(t *testing.T) {
-	type args struct {
-		defaultAdminUser string
+	// Helper function to set and unset environment variables
+	setEnv := func(key, value string) {
+		oldValue, exists := os.LookupEnv(key)
+		os.Setenv(key, value)
+		t.Cleanup(func() {
+			if exists {
+				os.Setenv(key, oldValue)
+			} else {
+				os.Unsetenv(key)
+			}
+		})
 	}
 
 	tests := []struct {
-		name          string
-		args          args
-		envAdminUser  string
-		want          string
-		wantErr       bool
-		wantErrPrefix string
+		name             string
+		envValue         string
+		defaultAdminUser string
+		expected         string
+		shouldPanic      bool
 	}{
-		{
-			name: "should return the default values when env variable is not set",
-			args: args{
-				defaultAdminUser: "goAdmin",
-			},
-			envAdminUser:  "",
-			want:          "goAdmin",
-			wantErr:       false,
-			wantErrPrefix: "",
-		},
-		{
-			name: "should return the env variable is set to valid values",
-			args: args{
-				defaultAdminUser: "goAdmin",
-			},
-			envAdminUser:  "admin",
-			want:          "admin",
-			wantErr:       false,
-			wantErrPrefix: "",
-		},
+		{"Use default", "", "defaultAdmin", "defaultAdmin", false},
+		{"Use env variable", "envAdmin", "defaultAdmin", "envAdmin", false},
+		{"UserLogin too short", "a", "adm", "", true},
+		{"UserLogin exactly minimum length", "exact", "defaultAdmin", "exact", false},
+		{"emoticons characters should be counted as one", "💥⭐🌀🚩", "defaultAdmin", "", true},
+		{"emoticons characters should be accepted", "🏁❗️‼️⁉️⚠️✅❎🔺🔻🔸🔹🔶🔴🔴🔵🔷🔔🔕🚩 🔅🔆✍️✌️👍👆🚀🛎👉🎁📣☀️🔥", "adm", "🏁❗️‼️⁉️⚠️✅❎🔺🔻🔸🔹🔶🔴🔴🔵🔷🔔🔕🚩 🔅🔆✍️✌️👍👆🚀🛎👉🎁📣☀️🔥", false},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if len(tt.envAdminUser) > 0 {
-				err := os.Setenv("ADMIN_USER", tt.envAdminUser)
-				if err != nil {
-					t.Errorf("Unable to set env variable ADMIN_USER")
-					return
-				}
+			if tt.envValue != "" {
+				setEnv("ADMIN_USER", tt.envValue)
 			} else {
-				// we do not want that an external setting of ADMIN_USER breaks this test
-				err := os.Unsetenv("ADMIN_USER")
-				if err != nil {
-					t.Errorf("Unable to unset env variable ADMIN_USER")
-					return
-				}
+				os.Unsetenv("ADMIN_USER")
 			}
-			if got := GetAdminUserFromFromEnv(tt.args.defaultAdminUser); got != tt.want {
-				t.Errorf("GetAdminUserFromFromEnv() = %v, want %v", got, tt.want)
+
+			if tt.shouldPanic {
+				defer func() {
+					if r := recover(); r == nil {
+						t.Errorf("Expected panic, but function did not panic")
+					}
+				}()
+			}
+
+			result := GetAdminUserFromFromEnvOrPanic(tt.defaultAdminUser)
+
+			if !tt.shouldPanic && result != tt.expected {
+				t.Errorf("Expected %s, but got %s", tt.expected, result)
 			}
 		})
 	}
 }
 
-func TestGetAdminPasswordFromFromEnv(t *testing.T) {
+func TestGetAdminEmailFromFromEnv(t *testing.T) {
+	// Helper function to set and unset environment variables
+	setEnv := func(key, value string) {
+		oldValue, exists := os.LookupEnv(key)
+		os.Setenv(key, value)
+		t.Cleanup(func() {
+			if exists {
+				os.Setenv(key, oldValue)
+			} else {
+				os.Unsetenv(key)
+			}
+		})
+	}
 
 	tests := []struct {
-		name             string
-		envAdminPassword string
-		want             string
-		wantErr          bool
-		wantErrPrefix    string
+		name              string
+		envValue          string
+		defaultAdminEmail string
+		expected          string
+		shouldPanic       bool
 	}{
-		{
-			name:             "should return Error when env variable is not set",
-			envAdminPassword: "",
-			want:             "",
-			wantErr:          true,
-			wantErrPrefix:    "",
-		},
-		{
-			name:             "should return the env variable is set to valid values",
-			envAdminPassword: "theOneYouWillMayBeChoose",
-			want:             "theOneYouWillMayBeChoose",
-			wantErr:          false,
-			wantErrPrefix:    "",
-		},
+		{"Use default", "", "defaultAdminEmail@toto.ch", "defaultAdminEmail@toto.ch", false},
+		{"Use env variable", "envAdmin@toto.ch", "defaultAdminEmail@toto.ch", "envAdmin@toto.ch", false},
+		{"UserEmail too short", "a", "adm", "", true},
+		{"UserEmail exactly minimum length", "adm@totos.ch", "defaultAdmin", "adm@totos.ch", false},
+		{"emoticons should not be allowed", "💥⭐🌀🚩@toto.ch", "defaultAdmin", "", true},
+		{"invalid email should not be allowed", "blairoATtoto.ch", "defaultAdmin", "", true},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if len(tt.envAdminPassword) > 0 {
-				err := os.Setenv("ADMIN_PASSWORD", tt.envAdminPassword)
-				if err != nil {
-					t.Errorf("Unable to set env variable ADMIN_PASSWORD")
-					return
-				}
+			if tt.envValue != "" {
+				setEnv("ADMIN_EMAIL", tt.envValue)
 			} else {
-				// we do not want that an external setting of ADMIN_USER breaks this test
-				err := os.Unsetenv("ADMIN_PASSWORD")
-				if err != nil {
-					t.Errorf("Unable to unset env variable ADMIN_PASSWORD")
-					return
-				}
+				os.Unsetenv("ADMIN_EMAIL")
 			}
-			got, err := GetAdminPasswordFromFromEnv()
-			if err != nil {
-				if !tt.wantErr {
-					t.Errorf("GetAdminUserFromFromEnv() returned un unwanted error: %s got= %v, want %v", err, got, tt.want)
-				}
+
+			if tt.shouldPanic {
+				defer func() {
+					if r := recover(); r == nil {
+						t.Errorf("Expected panic, but function did not panic")
+					}
+				}()
+			}
+
+			result := GetAdminEmailFromFromEnvOrPanic(tt.defaultAdminEmail)
+
+			if !tt.shouldPanic && result != tt.expected {
+				t.Errorf("Expected %s, but got %s", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestGetAdminIdFromFromEnvOrPanic(t *testing.T) {
+	tests := []struct {
+		name            string
+		defaultAdminId  int
+		envValue        string
+		expectedAdminId int
+		shouldPanic     bool
+	}{
+		{
+			name:            "Use default when env not set",
+			defaultAdminId:  1000,
+			envValue:        "",
+			expectedAdminId: 1000,
+			shouldPanic:     false,
+		},
+		{
+			name:            "Use env value when set",
+			defaultAdminId:  1000,
+			envValue:        "2000",
+			expectedAdminId: 2000,
+			shouldPanic:     false,
+		},
+		{
+			name:            "Panic on invalid env value",
+			defaultAdminId:  1000,
+			envValue:        "invalid",
+			expectedAdminId: 0,
+			shouldPanic:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue != "" {
+				os.Setenv("ADMIN_ID", tt.envValue)
+				defer os.Unsetenv("ADMIN_ID")
 			} else {
-				if tt.wantErr {
-					t.Errorf("GetAdminUserFromFromEnv() di not return the expected error: %s got= %v, want %v", err, got, tt.want)
-				}
+				os.Unsetenv("ADMIN_ID")
 			}
-			if got != tt.want {
-				t.Errorf("GetAdminUserFromFromEnv() = %v, want %v", got, tt.want)
+
+			if tt.shouldPanic {
+				defer func() {
+					if r := recover(); r == nil {
+						t.Errorf("Expected panic, but didn't get one")
+					}
+				}()
+			}
+
+			result := GetAdminIdFromFromEnvOrPanic(tt.defaultAdminId)
+
+			if !tt.shouldPanic && result != tt.expectedAdminId {
+				t.Errorf("Expected admin ID %d, but got %d", tt.expectedAdminId, result)
+			}
+		})
+	}
+}
+
+func TestGetAdminPasswordFromFromEnvOrPanic(t *testing.T) {
+	setEnv := func(key, value string) {
+		oldValue, exists := os.LookupEnv(key)
+		os.Setenv(key, value)
+		t.Cleanup(func() {
+			if exists {
+				os.Setenv(key, oldValue)
+			} else {
+				os.Unsetenv(key)
+			}
+		})
+	}
+
+	tests := []struct {
+		name        string
+		envValue    string
+		expected    string
+		shouldPanic bool
+	}{
+		{"Valid password", "ValidP@ssw0rd", "ValidP@ssw0rd", false},
+		{"Missing env variable", "", "", true},
+		{"Password too short", "Short1!", "", true},
+		{"Password without lowercase", "PASSWORD123!", "", true},
+		{"Password without uppercase", "password123!", "", true},
+		{"Password without number", "Password!", "", true},
+		{"Password without special char", "Password123", "", true},
+		{"Password with invalid char #", "Password123#", "", true},
+		{"Password with invalid char |", "Password123|", "", true},
+		{"Password with invalid char '", "Password123'", "", true},
+		{"Password with space", "Password 123!", "", true},
+		{"emoticons characters should be counted as one", "💥⭐🌀🚩✅📣🔆", "", true},
+		{"emoticons characters should be accepted", "1Aa🏁❗‼️⁉️⚠️✅❎🔺🔻🔸🔹🔶🔴🔴🔵🔷🔔🔕🚩🔅🔆✍️✌️👍👆🚀🛎👉🎁📣☀️🔥", "1Aa🏁❗‼️⁉️⚠️✅❎🔺🔻🔸🔹🔶🔴🔴🔵🔷🔔🔕🚩🔅🔆✍️✌️👍👆🚀🛎👉🎁📣☀️🔥", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue != "" {
+				setEnv("ADMIN_PASSWORD", tt.envValue)
+			} else {
+				os.Unsetenv("ADMIN_PASSWORD")
+			}
+
+			if tt.shouldPanic {
+				defer func() {
+					if r := recover(); r == nil {
+						t.Errorf("Expected panic, but function did not panic")
+					}
+				}()
+			}
+
+			result := GetAdminPasswordFromFromEnvOrPanic()
+
+			if !tt.shouldPanic && result != tt.expected {
+				t.Errorf("Expected %s, but got %s", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestVerifyPasswordComplexity(t *testing.T) {
+	tests := []struct {
+		name     string
+		password string
+		expected bool
+	}{
+		{"Valid password", "ValidP@ssw0rd", true},
+		{"No lowercase", "PASSWORD123!", false},
+		{"No uppercase", "password123!", false},
+		{"No number", "Password!", false},
+		{"No special char", "Password123", false},
+		{"With invalid char #", "Password123#", false},
+		{"With invalid char |", "Password123|", false},
+		{"With invalid char '", "Password123'", false},
+		{"With space", "Password 123!", false},
+		{"With forbidden chars", "&nrt+\"]or_.r#''!s<Bbv", false},
+		{"With special allowed chars", "&1nrt+\"]or_.r!s<Bbv", true},
+		{"Too short but complex", "P@ss1", true},
+		{"unicode spaces should be banned ", "Aa1💥⭐ 🌀🚩", false},
+		{"all kind of emoticons characters should be accepted", "Aa1🏁❗️‼️⁉️⚠️✅❎🔺🔻🔸🔹🔶🔴🔴🔵🔷🔔🔕🚩 🔅🔆✍️✌️👍👆🚀🛎👉🎁📣☀️🔥", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := VerifyPasswordComplexity(tt.password)
+			if result != tt.expected {
+				t.Errorf("Expected %v, but got %v for password: %s", tt.expected, result, tt.password)
 			}
 		})
 	}

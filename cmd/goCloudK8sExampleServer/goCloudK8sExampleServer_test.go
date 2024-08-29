@@ -32,12 +32,8 @@ type testStruct struct {
 
 // TestMainExec is instantiating the "real" main code using the env variable (in your .env files if you use the Makefile rule)
 func TestMainExec(t *testing.T) {
-	listenPort, err := config.GetPortFromEnv(defaultPort)
-	if err != nil {
-		t.Errorf("💥💥 ERROR: 'calling GetPortFromEnv got error: %v'\n", err)
-		return
-	}
-	listenAddr := fmt.Sprintf("http://localhost%s", listenPort)
+	listenPort := config.GetPortFromEnvOrPanic(defaultPort)
+	listenAddr := fmt.Sprintf("http://localhost:%d", listenPort)
 	fmt.Printf("INFO: 'Will start HTTP server listening on port %s'\n", listenAddr)
 
 	newRequest := func(method, url string, body string) *http.Request {

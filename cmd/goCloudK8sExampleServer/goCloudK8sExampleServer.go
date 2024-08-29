@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"github.com/cristalhq/jwt/v4"
 	"github.com/golang-migrate/migrate/v4"
@@ -10,8 +11,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/database"
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/goHttpEcho"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/goserver"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/info"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/metadata"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/tools"
@@ -24,6 +25,7 @@ import (
 )
 
 const (
+	APP                        = "goCloudK8sCommonLibsDemoServer"
 	defaultPort                = 8080
 	defaultDBPort              = 5432
 	defaultDBIp                = "127.0.0.1"
@@ -71,7 +73,7 @@ func (s Service) login(ctx echo.Context) error {
 	}
 
 	// Set custom claims
-	claims := &goserver.JwtCustomClaims{
+	claims := &goHttpEcho.JwtCustomClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        "",
 			Audience:  nil,
@@ -105,7 +107,7 @@ func (s Service) restricted(ctx echo.Context) error {
 	s.Log.Debug("entering restricted() ")
 	// get the current user from JWT TOKEN
 	u := ctx.Get("jwtdata").(*jwt.Token)
-	claims := goserver.JwtCustomClaims{}
+	claims := goHttpEcho.JwtCustomClaims{}
 	err := u.DecodeClaims(&claims)
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, err)
@@ -135,32 +137,15 @@ func checkHealthy(info string) bool {
 }
 
 func main() {
-	prefix := fmt.Sprintf("%s ", version.APP)
-	//l := log.New(os.Stdout, prefix, log.Ldate|log.Ltime|log.Lshortfile)
-	l, err := golog.NewLogger("zap", golog.DebugLevel, prefix)
+	l, err := golog.NewLogger("zap", golog.DebugLevel, APP)
 	if err != nil {
 		log.Fatalf("💥💥 error log.NewLogger error: %v'\n", err)
 	}
-	//l.Info("'Starting %s v:%s  rev:%s  build: %s'", version.APP, version.VERSION, version.REVISION, version.BuildStamp)
-	l.Debug("Starting %s v:%s", version.APP, version.VERSION)
-	l.Info("Starting %s v:%s", version.APP, version.VERSION)
-	l.Warn("Starting %s v:%s", version.APP, version.VERSION)
-	l.Error("Starting %s v:%s", version.APP, version.VERSION)
-	//ls.Fatal("Ending  %s v:%s", version.APP, version.VERSION)
-	l.Info("Repository: https://%s", version.REPOSITORY)
-	secret, err := config.GetJwtSecretFromEnv()
-	if err != nil {
-		l.Fatal("💥💥 error doing config.GetJwtSecretFromEnv() error: %v", err)
-	}
-	tokenDuration, err := config.GetJwtDurationFromEnv(60)
-	if err != nil {
-		l.Fatal("💥💥 error doing config.GetJwtDurationFromEnv(60)  error: %v", err)
-	}
-	dbDsn, err := config.GetPgDbDsnUrlFromEnv(defaultDBIp, defaultDBPort,
-		tools.ToSnakeCase(version.APP), version.AppSnake, defaultDBSslMode)
-	if err != nil {
-		l.Fatal("💥💥 error doing config.GetPgDbDsnUrlFromEnv. error: %v", err)
-	}
+	l.Info("🚀🚀 Starting App:'%s', ver:%s, build:%s, from: %s", APP, version.VERSION, version.Build, version.REPOSITORY)
+
+	secret := config.GetJwtSecretFromEnvOrPanic()
+	tokenDuration := config.GetJwtDurationFromEnvOrPanic(60)
+	dbDsn := config.GetPgDbDsnUrlFromEnvOrPanic(defaultDBIp, defaultDBPort, tools.ToSnakeCase(version.APP), version.AppSnake, defaultDBSslMode)
 	db, err := database.GetInstance("pgx", dbDsn, runtime.NumCPU(), l)
 	if err != nil {
 		l.Fatal("💥💥 error doing database.GetInstance(pgx ...) error: %v", err)
@@ -173,29 +158,17 @@ func main() {
 	}
 	l.Info("connected to db version : %s", dbVersion)
 
-	metadataService := metadata.Service{
-		Log: l,
-		Db:  db,
-	}
-
-	err = metadataService.CreateMetadataTableIfNeeded()
-	if err != nil {
-		l.Fatal("💥💥 error doing metadataService.CreateMetadataTableIfNeeded  error: %v", err)
-	}
-
-	found, ver, err := metadataService.GetServiceVersion(version.APP)
-	if err != nil {
-		l.Fatal("💥💥 error doing metadataService.CreateMetadataTableIfNeeded  error: %v\n", err)
-	}
+	// checking metadata information
+	metadataService := metadata.Service{Log: l, Db: db}
+	metadataService.CreateMetadataTableOrFail()
+	found, ver := metadataService.GetServiceVersionOrFail(version.APP)
 	if found {
 		l.Info("service %s was found in metadata with version: %s", version.APP, ver)
 	} else {
 		l.Info("service %s was not found in metadata", version.APP)
 	}
-	err = metadataService.SetServiceVersion(version.APP, version.VERSION)
-	if err != nil {
-		l.Fatal("💥💥 error doing metadataService.SetServiceVersion  error: %v\n", err)
-	}
+	metadataService.SetServiceVersionOrFail(version.APP, version.VERSION)
+
 	// example of go-migrate db migration with embed files in go program
 	// https://github.com/golang-migrate/migrate
 	// https://github.com/golang-migrate/migrate/blob/master/database/postgres/TUTORIAL.md
@@ -211,7 +184,7 @@ func main() {
 	err = m.Up()
 	if err != nil {
 		//if err == m.
-		if err != migrate.ErrNoChange {
+		if !errors.Is(err, migrate.ErrNoChange) {
 			l.Fatal("💥💥 error doing migrate.Up error: %v\n", err)
 		}
 	}
@@ -241,12 +214,10 @@ func main() {
 		JwtDuration: tokenDuration,
 	}
 
-	listenAddr, err := config.GetPortFromEnv(defaultPort)
-	if err != nil {
-		l.Fatal("💥💥 error doing config.GetPortFromEnv got error: %v'\n", err)
-	}
+	listenPort := config.GetPortFromEnvOrPanic(defaultPort)
+	listenAddr := fmt.Sprintf(":%d", listenPort)
 	l.Info("'Will start HTTP server listening on port %s'", listenAddr)
-	server := goserver.NewGoHttpServer(listenAddr, l, defaultWebRootDir, content, "/api")
+	server := goHttpEcho.NewGoHttpServer(listenAddr, l, defaultWebRootDir, content, "/api")
 	e := server.GetEcho()
 
 	e.GET("/readiness", server.GetReadinessHandler(checkReady, "Connection to DB"))

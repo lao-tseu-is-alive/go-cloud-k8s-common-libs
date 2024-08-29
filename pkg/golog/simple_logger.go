@@ -29,27 +29,27 @@ func (l *SimpleLogger) Debug(msg string, v ...any) {
 func (l *SimpleLogger) Info(msg string, v ...interface{}) {
 	if l.maxLevel <= InfoLevel {
 		color := ansi.ColorFunc("white+h")
-		l.logger.Output(2, color(fmt.Sprintf("INFO : %s", fmt.Sprintf(msg, v...))))
+		l.logger.Output(2, color(fmt.Sprintf(" 📣 INFO : %s", fmt.Sprintf(msg, v...))))
 	}
 }
 
 func (l *SimpleLogger) Warn(msg string, v ...interface{}) {
 	if l.maxLevel <= WarnLevel {
 		color := ansi.ColorFunc("yellow+h")
-		l.logger.Output(2, color(fmt.Sprintf("WARN : %s", fmt.Sprintf(msg, v...))))
+		l.logger.Output(2, color(fmt.Sprintf(" 🚩 WARN : %s", fmt.Sprintf(msg, v...))))
 	}
 }
 
 func (l *SimpleLogger) Error(msg string, v ...interface{}) {
 	if l.maxLevel <= ErrorLevel {
 		color := ansi.ColorFunc("red+b:white+h")
-		l.logger.Output(2, color(fmt.Sprintf("ERROR: %s", fmt.Sprintf(msg, v...))))
+		l.logger.Output(2, color(fmt.Sprintf(" ⚠️ ⚡ ERROR: %s", fmt.Sprintf(msg, v...))))
 	}
 }
 
 func (l *SimpleLogger) Fatal(msg string, v ...interface{}) {
 	color := ansi.ColorFunc("yellow+h:red+h")
-	l.logger.Output(2, color(fmt.Sprintf("FATAL: %s", fmt.Sprintf(msg, v...))))
+	l.logger.Output(2, color(fmt.Sprintf("💥 💥 FATAL: %s", fmt.Sprintf(msg, v...))))
 	os.Exit(1)
 }
 

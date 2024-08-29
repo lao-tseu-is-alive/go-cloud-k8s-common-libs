@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-// GetPgDbDsnUrlFromEnv returns a valid DSN connection string based on the values of environment variables :
+// GetPgDbDsnUrlFromEnvOrPanic returns a valid DSN connection string based on the values of environment variables :
 //
 //		DB_HOST : string containing a valid Ip Address to use for DB connection
 //		DB_PORT : int value between 1 and 65535
@@ -17,8 +17,8 @@ import (
 //	 DB_SSL_MODE : string containing ssl mode (disable|allow|prefer|require|verify-ca|verify-full)
 //	 more info on libpg SSL : https://www.postgresql.org/docs/11/libpq-ssl.html#LIBPQ-SSL-PROTECTION
 //	 more info : https://pkg.go.dev/github.com/jackc/pgconn#ParseConfig
-func GetPgDbDsnUrlFromEnv(defaultIP string, defaultPort int,
-	defaultDbName string, defaultDbUser string, defaultSSL string) (string, error) {
+func GetPgDbDsnUrlFromEnvOrPanic(defaultIP string, defaultPort int,
+	defaultDbName string, defaultDbUser string, defaultSSL string) string {
 	srvIP := defaultIP
 	srvPort := defaultPort
 	dbName := defaultDbName
@@ -31,26 +31,17 @@ func GetPgDbDsnUrlFromEnv(defaultIP string, defaultPort int,
 	if exist {
 		srvPort, err = strconv.Atoi(val)
 		if err != nil {
-			return "", &Error{
-				err: err,
-				msg: "ERROR: CONFIG ENV DB_PORT should contain a valid integer.",
-			}
+			panic(fmt.Errorf("💥💥 ERROR: CONFIG ENV DB_PORT should contain a valid integer. %v", err))
 		}
 		if srvPort < 1 || srvPort > 65535 {
-			return "", &Error{
-				err: err,
-				msg: "ERROR: CONFIG ENV DB_PORT should contain an integer between 1 and 65535",
-			}
+			panic(fmt.Errorf("💥💥 ERROR: DB_PORT should contain an integer between 1 and 65535. Err: %v", err))
 		}
 	}
 	val, exist = os.LookupEnv("DB_HOST")
 	if exist {
 		srvIP = val
 		if net.ParseIP(srvIP) == nil {
-			return "", &Error{
-				err: err,
-				msg: "ERROR: CONFIG ENV DB_HOST should contain a valid IP Address.",
-			}
+			panic("💥💥 ERROR: CONFIG ENV DB_HOST should contain a valid IP. ")
 		}
 	}
 	val, exist = os.LookupEnv("DB_NAME")
@@ -65,15 +56,12 @@ func GetPgDbDsnUrlFromEnv(defaultIP string, defaultPort int,
 	if exist {
 		dbPassword = val
 	} else {
-		return "", &Error{
-			err: err,
-			msg: "ERROR: CONFIG ENV DB_PASSWORD should contain a password value.",
-		}
+		panic("💥💥 ERROR: CONFIG ENV DB_PASSWORD should contain a password value.")
 	}
 	val, exist = os.LookupEnv("DB_SSL_MODE")
 	if exist {
 		dbSslMode = val
 	}
 	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
-		dbUser, dbPassword, srvIP, srvPort, dbName, dbSslMode), nil
+		dbUser, dbPassword, srvIP, srvPort, dbName, dbSslMode)
 }

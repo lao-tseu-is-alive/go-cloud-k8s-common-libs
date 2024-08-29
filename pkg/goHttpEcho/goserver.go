@@ -1,4 +1,4 @@
-package goserver
+package goHttpEcho
 
 import (
 	"context"
@@ -86,11 +86,8 @@ func NewGoHttpServer(listenAddress string, l golog.MyLogger, webRootDir string, 
 	e := echo.New()
 	e.HideBanner = true
 	e.Use(middleware.CORS())
-	signingKey, err := config.GetJwtSecretFromEnv()
+	signingKey := config.GetJwtSecretFromEnvOrPanic()
 	JwtSecret := []byte(signingKey)
-	if err != nil {
-		l.Fatal("💥💥 ERROR: 'in NewGoHttpServer config.GetJwtSecretFromEnv() got error: %v'", err)
-	}
 	e.HideBanner = true
 	/* will try a better way to handle 404 */
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
@@ -124,7 +121,7 @@ func NewGoHttpServer(listenAddress string, l golog.MyLogger, webRootDir string, 
 	// Restricted group definition : we decide to only all authenticated calls to the URL /api
 	r := e.Group(restrictedUrl)
 	// Configure middleware with the custom claims type
-	config := echojwt.Config{
+	configJwt := echojwt.Config{
 		ContextKey: "jwtdata",
 		SigningKey: JwtSecret,
 
@@ -171,10 +168,10 @@ func NewGoHttpServer(listenAddress string, l golog.MyLogger, webRootDir string, 
 
 		},
 	}
-	r.Use(echojwt.WithConfig(config))
+	r.Use(echojwt.WithConfig(configJwt))
 
 	var defaultHttpLogger *log.Logger
-	defaultHttpLogger, err = l.GetDefaultLogger()
+	defaultHttpLogger, err := l.GetDefaultLogger()
 	if err != nil {
 		// in case we cannot get a valid log.Logger for http let's create a reasonable one
 		defaultHttpLogger = log.New(os.Stderr, "NewGoHttpServer::defaultHttpLogger", log.Ldate|log.Ltime|log.Lshortfile)
