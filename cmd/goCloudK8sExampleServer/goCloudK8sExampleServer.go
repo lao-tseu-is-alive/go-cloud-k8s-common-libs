@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/cristalhq/jwt/v4"
 	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/pgx"
+	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/labstack/echo/v4"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
@@ -141,7 +141,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("💥💥 error log.NewLogger error: %v'\n", err)
 	}
-	l.Info("🚀🚀 Starting App:'%s', ver:%s, build:%s, from: %s", APP, version.VERSION, version.Build, version.REPOSITORY)
+	l.Info("🚀🚀 Starting App:'%s', ver:%s, from: %s", APP, version.VERSION, version.REPOSITORY)
 
 	secret := config.GetJwtSecretFromEnvOrPanic()
 	tokenDuration := config.GetJwtDurationFromEnvOrPanic(60)
@@ -176,7 +176,7 @@ func main() {
 	if err != nil {
 		l.Fatal("💥💥 error doing iofs.New for db migrations  error: %v\n", err)
 	}
-	m, err := migrate.NewWithSourceInstance("iofs", d, strings.Replace(dbDsn, "postgres", "pgx", 1))
+	m, err := migrate.NewWithSourceInstance("iofs", d, strings.Replace(dbDsn, "postgres", "pgx5", 1))
 	if err != nil {
 		l.Fatal("💥💥 error doing migrate.NewWithSourceInstance(iofs, dbURL:%s)  error: %v\n", dbDsn, err)
 	}
