@@ -4,7 +4,6 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"github.com/cristalhq/jwt/v4"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -13,7 +12,6 @@ import (
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/database"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/goHttpEcho"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/info"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/metadata"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/tools"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/version"
@@ -33,8 +31,9 @@ const (
 	defaultReadTimeout         = 10 * time.Second // max time to read request from the client
 	defaultWebRootDir          = "goCloudK8sExampleFront/dist/"
 	defaultSqlDbMigrationsPath = "db/migrations"
-	defaultUsername            = "bill"
-	defaultFakeStupidPass      = "board"
+	defaultAdminUser           = "goadmin"
+	defaultAdminEmail          = "goadmin@lausanne.ch"
+	defaultAdminId             = 960901
 	charsetUTF8                = "charset=UTF-8"
 	MIMEHtml                   = "text/html"
 	MIMEHtmlCharsetUTF8        = MIMEHtml + "; " + charsetUTF8
@@ -52,80 +51,60 @@ var content embed.FS
 var sqlMigrations embed.FS
 
 type Service struct {
-	Log golog.MyLogger
+	Logger golog.MyLogger
 	//Store       Storage
-	dbConn      database.DB
-	JwtSecret   []byte
-	JwtDuration int
+	dbConn database.DB
+	server *goHttpEcho.Server
 }
 
 // login is just a trivial stupid example to test this server
 // you should use the jwt token returned from LoginUser  in github.com/lao-tseu-is-alive/go-cloud-k8s-user-group'
 // and share the same secret with the above component
 func (s Service) login(ctx echo.Context) error {
-	s.Log.Debug("entering login() \n##request: %+v", ctx.Request())
-	username := ctx.FormValue("login")
-	fakePassword := ctx.FormValue("pass")
+	goHttpEcho.TraceRequest("login", ctx.Request(), s.Logger)
+	login := ctx.FormValue("login")
+	passwordHash := ctx.FormValue("hashed")
+	s.Logger.Debug("login: %s , hash: %s ", login, passwordHash)
+	// maybe it was not a form but a fetch data post
+	if len(strings.Trim(login, " ")) < 1 {
+		return ctx.JSON(http.StatusUnauthorized, "invalid credentials")
+	}
 
-	// Throws unauthorized error
-	if username != defaultUsername || fakePassword != defaultFakeStupidPass {
+	if s.server.Authenticator.AuthenticateUser(login, passwordHash) {
+		userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(login)
+		if err != nil {
+			errGetUInfFromLogin := fmt.Sprintf("Error getting user info from login: %v", err)
+			s.Logger.Error(errGetUInfFromLogin)
+			return ctx.JSON(http.StatusInternalServerError, errGetUInfFromLogin)
+		}
+		token, err := s.server.JwtCheck.GetTokenFromUserInfo(userInfo)
+		if err != nil {
+			errGetUInfFromLogin := fmt.Sprintf("Error getting jwt token from user info: %v", err)
+			s.Logger.Error(errGetUInfFromLogin)
+			return ctx.JSON(http.StatusInternalServerError, errGetUInfFromLogin)
+		}
+		// Prepare the response
+		response := map[string]string{
+			"token": token.String(),
+		}
+		s.Logger.Info("LoginUser(%s) successful login, token : %s", login, token.String())
+		return ctx.JSON(http.StatusOK, response)
+	} else {
 		return ctx.JSON(http.StatusUnauthorized, "username not found or password invalid")
 	}
-
-	// Set custom claims
-	claims := &goHttpEcho.JwtCustomClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        "",
-			Audience:  nil,
-			Issuer:    "",
-			Subject:   "",
-			ExpiresAt: &jwt.NumericDate{Time: time.Now().Add(time.Minute * time.Duration(s.JwtDuration))},
-			IssuedAt:  &jwt.NumericDate{Time: time.Now()},
-			NotBefore: nil,
-		},
-		Id:       999,
-		Name:     "Bill Whatever",
-		Email:    "bill@whatever.com",
-		Username: defaultUsername,
-		IsAdmin:  false,
-	}
-
-	// Create token with claims
-	signer, _ := jwt.NewSignerHS(jwt.HS512, s.JwtSecret)
-	builder := jwt.NewBuilder(signer)
-	token, err := builder.Build(claims)
-	if err != nil {
-		return err
-	}
-	s.Log.Info("LoginUser(%s) successful login for user id (%d)", claims.Username, claims.Id)
-	return ctx.JSON(http.StatusOK, echo.Map{
-		"token": token.String(),
-	})
 }
 
 func (s Service) restricted(ctx echo.Context) error {
-	s.Log.Debug("entering restricted() ")
+	goHttpEcho.TraceRequest("restricted", ctx.Request(), s.Logger)
 	// get the current user from JWT TOKEN
-	u := ctx.Get("jwtdata").(*jwt.Token)
-	claims := goHttpEcho.JwtCustomClaims{}
-	err := u.DecodeClaims(&claims)
-	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, err)
-	}
-	//callerUserId := claims.Id
+	claims := s.server.JwtCheck.GetJwtCustomClaimsFromContext(ctx)
+	currentUserId := claims.User.UserId
+	s.Logger.Info("in restricted : currentUserId: %d", currentUserId)
 	// you can check if the user is not active anymore and RETURN 401 Unauthorized
 	//if !s.Store.IsUserActive(currentUserId) {
 	//	return echo.NewHTTPError(http.StatusUnauthorized, "current calling user is not active anymore")
 	//}
 	return ctx.JSON(http.StatusCreated, claims)
-}
-
-func checkReady(info string) bool {
-	// you decide what makes you ready, may be it is the connection to the database
-	//if !connectedToDB {
-	//	return false
-	//}
-	return true
 }
 
 func checkHealthy(info string) bool {
@@ -143,8 +122,6 @@ func main() {
 	}
 	l.Info("🚀🚀 Starting App:'%s', ver:%s, from: %s", APP, version.VERSION, version.REPOSITORY)
 
-	secret := config.GetJwtSecretFromEnvOrPanic()
-	tokenDuration := config.GetJwtDurationFromEnvOrPanic(60)
 	dbDsn := config.GetPgDbDsnUrlFromEnvOrPanic(defaultDBIp, defaultDBPort, tools.ToSnakeCase(version.APP), version.AppSnake, defaultDBSslMode)
 	db, err := database.GetInstance("pgx", dbDsn, runtime.NumCPU(), l)
 	if err != nil {
@@ -169,9 +146,7 @@ func main() {
 	}
 	metadataService.SetServiceVersionOrFail(version.APP, version.VERSION)
 
-	// example of go-migrate db migration with embed files in go program
 	// https://github.com/golang-migrate/migrate
-	// https://github.com/golang-migrate/migrate/blob/master/database/postgres/TUTORIAL.md
 	d, err := iofs.New(sqlMigrations, defaultSqlDbMigrationsPath)
 	if err != nil {
 		l.Fatal("💥💥 error doing iofs.New for db migrations  error: %v\n", err)
@@ -189,50 +164,53 @@ func main() {
 		}
 	}
 
-	// example of how to test if we are running inside kubernetes as a Pod
-	k8sVersion := ""
-	k8sCurrentNameSpace := ""
-	k8sUrl, err := info.GetKubernetesApiUrlFromEnv()
-	if err != nil {
-		l.Warn("💥💥 GetKubernetesApiUrlFromEnv() returned an error, are we really inside a k8s Pod ?? err : %+#v'", err)
-	} else {
-		// here we can assume that we are inside a k8s container...
-		k8sInfo, errConnInfo := info.GetKubernetesConnInfo(l, defaultReadTimeout)
-		if errConnInfo.Err != nil {
-			l.Error("💥💥 ERROR: 'GetKubernetesConnInfo() returned an error : %s : %+#v'", errConnInfo.Msg, errConnInfo.Err)
-		}
-		k8sVersion = k8sInfo.Version
-		k8sCurrentNameSpace = k8sInfo.CurrentNamespace
-		l.Info("Running as Pod inside Kubernetes version : %s, within namespace : %s ", k8sVersion, k8sCurrentNameSpace)
-		l.Info("Kubernetes API url : %s ", k8sUrl)
-	}
+	myVersionReader := goHttpEcho.NewSimpleVersionReader(APP, version.VERSION, version.REPOSITORY)
+	// Create a new JWT checker
+	myJwt := goHttpEcho.NewJwtChecker(
+		config.GetJwtSecretFromEnvOrPanic(),
+		config.GetJwtIssuerFromEnvOrPanic(),
+		APP,
+		config.GetJwtDurationFromEnvOrPanic(60),
+		l)
+	// Create a new Authenticator with a simple admin user
+	myAuthenticator := goHttpEcho.NewSimpleAdminAuthenticator(
+		config.GetAdminUserFromFromEnvOrPanic(defaultAdminUser),
+		config.GetAdminPasswordFromFromEnvOrPanic(),
+		config.GetAdminEmailFromFromEnvOrPanic(defaultAdminEmail),
+		config.GetAdminIdFromFromEnvOrPanic(defaultAdminId),
+		myJwt)
 
-	yourService := Service{
-		Log:         l,
-		dbConn:      db,
-		JwtSecret:   []byte(secret),
-		JwtDuration: tokenDuration,
-	}
+	server := goHttpEcho.CreateNewServerFromEnvOrFail(
+		defaultPort,
+		"0.0.0.0",       // defaultServerIp,
+		myAuthenticator, // Authentication interface,
+		myJwt,           // JwtCheck,
+		myVersionReader,
+		l,
+		defaultWebRootDir,
+		content, // embed.FS	where the FrontEnd is stored
+		"/api",
+	)
 
-	listenPort := config.GetPortFromEnvOrPanic(defaultPort)
-	listenAddr := fmt.Sprintf(":%d", listenPort)
-	l.Info("'Will start HTTP server listening on port %s'", listenAddr)
-	server := goHttpEcho.NewGoHttpServer(listenAddr, l, defaultWebRootDir, content, "/api")
 	e := server.GetEcho()
-
-	e.GET("/readiness", server.GetReadinessHandler(checkReady, "Connection to DB"))
+	e.GET("/readiness", server.GetReadinessHandler(func(info string) bool {
+		ver, err := db.GetVersion()
+		if err != nil {
+			l.Error("Error getting db version : %v", err)
+			return false
+		}
+		l.Info("Connected to DB version : %s", ver)
+		return true
+	}, "Connection to DB"))
 	e.GET("/health", server.GetHealthHandler(checkHealthy, "Connection to DB"))
-	// Login route
+	yourService := Service{
+		Logger: l,
+		dbConn: db,
+		server: server,
+	}
 	e.POST("/login", yourService.login)
 	r := server.GetRestrictedGroup()
-	// now with restricted group reference you can here the routes defined in OpenApi users.yaml are registered
-	// yourModelEntityFromOpenApi.RegisterHandlers(r, &yourModelService)
 	r.GET("/secret", yourService.restricted)
-	loginExample := fmt.Sprintf("curl -v -X POST -d 'login=%s' -d 'pass=%s' http://localhost%s/login", defaultUsername, defaultFakeStupidPass, listenAddr)
-	getSecretExample := fmt.Sprintf(" curl -v  -H \"Authorization: Bearer ${TOKEN}\" http://localhost%s/api/secret |jq", listenAddr)
-	l.Info("from another terminal just try :\n\t %s", loginExample)
-	l.Info("then after doing an export TOKEN=the_received_token_above_goes_here \n\t%s", getSecretExample)
-
 	err = server.StartServer()
 	if err != nil {
 		l.Fatal("💥💥 error doing server.StartServer error: %v'\n", err)

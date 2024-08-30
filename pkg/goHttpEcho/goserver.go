@@ -3,15 +3,13 @@ package goHttpEcho
 import (
 	"context"
 	"embed"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/cristalhq/jwt/v4"
-	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
+	"github.com/rs/xid"
 	"log"
 	"net/http"
 	"os"
@@ -20,39 +18,222 @@ import (
 	"time"
 )
 
-const (
-	defaultProtocol        = "http"
-	secondsShutDownTimeout = 5 * time.Second  // maximum number of second to wait before closing server
-	defaultReadTimeout     = 10 * time.Second // max time to read request from the client
-	defaultWriteTimeout    = 10 * time.Second // max time to write response to the client
-	defaultIdleTimeout     = 2 * time.Minute  // max time for connections using TCP Keep-Alive
-	initCallMsg            = "INITIAL CALL TO %s()"
-	formatTraceRequest     = "TRACE: [%s] %s  path:'%s', RemoteAddrIP: [%s], msg: %s, val: %v"
-)
-
-// JwtCustomClaims are custom claims extending default ones.
-type JwtCustomClaims struct {
-	jwt.RegisteredClaims
-	Id       int32  `json:"id"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Username string `json:"username"`
-	IsAdmin  bool   `json:"is_admin"`
-}
-
 type FuncAreWeReady func(msg string) bool
 
 type FuncAreWeHealthy func(msg string) bool
 
-// GoHttpServer is a struct type to store information related to all handlers of web server
-type GoHttpServer struct {
+// Server is a struct type to store information related to all handlers of web server
+type Server struct {
 	listenAddress string
-	log           golog.MyLogger
+	logger        golog.MyLogger
 	e             *echo.Echo
 	r             *echo.Group // // Restricted group
 	router        *http.ServeMux
 	startTime     time.Time
+	Authenticator Authentication
+	JwtCheck      JwtChecker
+	VersionReader VersionReader
 	httpServer    http.Server
+}
+
+// NewGoHttpServer is a constructor that initializes the server,routes and all fields in Server type
+func NewGoHttpServer(listenAddress string, Auth Authentication, JwtCheck JwtChecker, Ver VersionReader, l golog.MyLogger, webRootDir string, content embed.FS, restrictedUrl string) *Server {
+	myServerMux := http.NewServeMux()
+
+	e := echo.New()
+	e.HideBanner = true
+	e.Use(middleware.CORS())
+	e.HideBanner = true
+	/* will try a better way to handle 404 */
+	e.HTTPErrorHandler = func(err error, c echo.Context) {
+		l.Debug("in customHTTPErrorHandler got error: %v", err)
+		re := c.Request()
+		TraceRequest("customHTTPErrorHandler", re, l)
+		code := http.StatusInternalServerError
+		var he *echo.HTTPError
+		if errors.As(err, &he) {
+			code = he.Code
+		}
+		if code == 404 {
+			errorPage := fmt.Sprintf("%s/%d.html", webRootDir, code)
+			res, err := content.ReadFile(errorPage)
+			if err != nil {
+				l.Error("in  content.ReadFile(%s) got error: %v", errorPage, err)
+			}
+			if err := c.HTMLBlob(code, res); err != nil {
+				l.Error("in  c.HTMLBlob(%d, %s) got error: %v", code, res, err)
+				c.Logger().Error(err)
+			}
+		} else {
+			c.JSON(code, err)
+		}
+	}
+	var contentHandler = echo.WrapHandler(http.FileServer(http.FS(content)))
+
+	// The embedded files will all be in the '/goCloudK8sUserGroupFront/dist/' folder so need to rewrite the request (could also do this with fs.Sub)
+	var contentRewrite = middleware.Rewrite(map[string]string{"/*": fmt.Sprintf("/%s$1", webRootDir)})
+	e.GET("/*", contentHandler, contentRewrite)
+
+	// Restricted group definition : we decide to only all authenticated calls to the URL /api
+	r := e.Group(restrictedUrl)
+	/*
+		// Configure middleware with the custom claims type
+		configJwt := echojwt.Config{
+			ContextKey: "jwtdata",
+			SigningKey: JwtSecret,
+
+			ParseTokenFunc: func(c echo.Context, auth string) (interface{}, error) {
+				//verifier, _ := jwt.NewVerifierHS(jwt.HS512, JwtSecret)
+				verifier, err := jwt.NewVerifierHS(jwt.HS512, []byte(JwtSecret))
+				if err != nil {
+					return nil, errors.New(fmt.Sprintf("error in ParseToken creating verifier: %s", err))
+				}
+				// claims are of type `jwt.MapClaims` when token is created with `jwt.Parse`
+				token, err := jwt.Parse([]byte(auth), verifier)
+				if err != nil {
+					return nil, errors.New(fmt.Sprintf("error in ParseToken parsing token: %s", err))
+				}
+				// get REGISTERED claims
+				var newClaims jwt.RegisteredClaims
+				err = json.Unmarshal(token.Claims(), &newClaims)
+				if err != nil {
+					return nil, err
+				}
+
+				l.Debug("JWT ParseTokenFunc, Algorithm %v", token.Header().Algorithm)
+				l.Debug("JWT ParseTokenFunc, Type      %v", token.Header().Type)
+				l.Debug("JWT ParseTokenFunc, Claims    %v", string(token.Claims()))
+				l.Debug("JWT ParseTokenFunc, Payload   %v", string(token.PayloadPart()))
+				l.Debug("JWT ParseTokenFunc, Token     %v", string(token.Bytes()))
+				l.Debug("JWT ParseTokenFunc, ParseTokenFunc : Claims:    %+v", string(token.Claims()))
+				if newClaims.IsValidAt(time.Now()) {
+					claims := JwtCustomClaims{}
+					err := token.DecodeClaims(&claims)
+					if err != nil {
+						return nil, errors.New("token cannot be parsed")
+					}
+					// IF USER IS DEACTIVATED  token should be invalidated RETURN 401 Unauthorized
+					// find a way to call this function (in User microservice)
+					//currentUserId := claims.Id
+					//if store.IsUserActive(currentUserId) {
+					//	return token, nil // ALL IS GOOD HERE
+					//} else {
+					// return nil, errors.New("token invalid because user account has been deactivated")
+					//}
+					//l.Printf("💥💥 ERROR: 'in  content.ReadFile(%s) got error: %v'", errorPage, err)
+					return token, nil // ALL IS GOOD HERE
+				} else {
+					l.Error("JWT ParseTokenFunc,  : IsValidAt(%+v)", time.Now())
+					return nil, errors.New("token has expired")
+				}
+
+			},
+		}
+		r.Use(echojwt.WithConfig(configJwt))
+	*/
+	r.Use(JwtCheck.JwtMiddleware)
+
+	var defaultHttpLogger *log.Logger
+	defaultHttpLogger, err := l.GetDefaultLogger()
+	if err != nil {
+		// in case we cannot get a valid logger.Logger for http let's create a reasonable one
+		defaultHttpLogger = log.New(os.Stderr, "NewGoHttpServer::defaultHttpLogger", log.Ldate|log.Ltime|log.Lshortfile)
+	}
+
+	myServer := Server{
+		listenAddress: listenAddress,
+		logger:        l,
+		r:             r,
+		e:             e,
+		router:        myServerMux,
+		startTime:     time.Now(),
+		Authenticator: Auth,
+		JwtCheck:      JwtCheck,
+		VersionReader: Ver,
+		httpServer: http.Server{
+			Addr:         listenAddress,       // configure the bind address
+			ErrorLog:     defaultHttpLogger,   // set the logger for the server
+			ReadTimeout:  defaultReadTimeout,  // max time to read request from the client
+			WriteTimeout: defaultWriteTimeout, // max time to write response to the client
+			IdleTimeout:  defaultIdleTimeout,  // max time for connections using TCP Keep-Alive
+		},
+	}
+
+	return &myServer
+}
+
+// CreateNewServerFromEnvOrFail creates a new server from environment variables or fails
+func CreateNewServerFromEnvOrFail(
+	defaultPort int,
+	defaultServerIp string,
+	myAuthenticator Authentication,
+	myJwt JwtChecker,
+	myVersionReader VersionReader,
+	l golog.MyLogger,
+	webRootDir string,
+	content embed.FS,
+	restrictedUrl string,
+) *Server {
+	listenPort := config.GetPortFromEnvOrPanic(defaultPort)
+	listenAddr := fmt.Sprintf("%s:%d", defaultServerIp, listenPort)
+	l.Info("HTTP server will listen : %s", listenAddr)
+
+	server := NewGoHttpServer(listenAddr, myAuthenticator, myJwt, myVersionReader, l, webRootDir, content, restrictedUrl)
+	return server
+
+}
+
+// GetEcho  returns a pointer to the Echo reference
+func (s *Server) GetEcho() *echo.Echo {
+	return s.e
+}
+
+// GetRestrictedGroup  adds a handler for this web server
+func (s *Server) GetRestrictedGroup() *echo.Group {
+	return s.r
+}
+
+// AddGetRoute  adds a handler for this web server
+func (s *Server) AddGetRoute(baseURL string, urlPath string, handler echo.HandlerFunc) {
+	// the next route is not restricted with jwt token
+	s.e.GET(baseURL+urlPath, handler)
+}
+
+// GetRouter returns the ServeMux of this web server
+func (s *Server) GetRouter() *http.ServeMux {
+	return s.router
+}
+
+// GetListenAddress returns the listen address of this web server
+func (s *Server) GetListenAddress() string {
+	return s.listenAddress
+}
+
+// GetLog returns the log of this web server
+func (s *Server) GetLog() golog.MyLogger {
+	return s.logger
+}
+
+// GetStartTime returns the start time of this web server
+func (s *Server) GetStartTime() time.Time {
+	return s.startTime
+}
+
+// StartServer initializes all the handlers paths of this web server, it is called inside the NewGoHttpServer constructor
+func (s *Server) StartServer() error {
+	// Starting the web server in his own goroutine
+	go func() {
+		s.logger.Info("starting http server listening at %s://%s/", defaultProtocol, s.listenAddress)
+		err := s.e.StartServer(&s.httpServer)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			s.logger.Fatal("💥💥 error could not listen on tcp port %q. error: %s", s.listenAddress, err)
+		}
+	}()
+	s.logger.Debug("Server listening on : %s PID:[%d]", s.httpServer.Addr, os.Getpid())
+
+	// Graceful Shutdown on SIGINT (interrupt)
+	waitForShutdownToExit(&s.httpServer, secondsShutDownTimeout)
+	return nil
 }
 
 // waitForShutdownToExit will wait for interrupt signal SIGINT or SIGTERM and gracefully shutdown the server after secondsToWait seconds.
@@ -79,189 +260,18 @@ func waitForShutdownToExit(srv *http.Server, secondsToWait time.Duration) {
 	os.Exit(0)
 }
 
-// NewGoHttpServer is a constructor that initializes the server,routes and all fields in GoHttpServer type
-func NewGoHttpServer(listenAddress string, l golog.MyLogger, webRootDir string, content embed.FS, restrictedUrl string) *GoHttpServer {
-	myServerMux := http.NewServeMux()
-
-	e := echo.New()
-	e.HideBanner = true
-	e.Use(middleware.CORS())
-	signingKey := config.GetJwtSecretFromEnvOrPanic()
-	JwtSecret := []byte(signingKey)
-	e.HideBanner = true
-	/* will try a better way to handle 404 */
-	e.HTTPErrorHandler = func(err error, c echo.Context) {
-		l.Debug("in customHTTPErrorHandler got error: %v", err)
-		re := c.Request()
-		l.Debug("customHTTPErrorHandler original failed request: %+v", re)
-		code := http.StatusInternalServerError
-		if he, ok := err.(*echo.HTTPError); ok {
-			code = he.Code
-		}
-		if code == 404 {
-			errorPage := fmt.Sprintf("%s/%d.html", webRootDir, code)
-			res, err := content.ReadFile(errorPage)
-			if err != nil {
-				l.Error("in  content.ReadFile(%s) got error: %v", errorPage, err)
-			}
-			if err := c.HTMLBlob(code, res); err != nil {
-				l.Error("in  c.HTMLBlob(%d, %s) got error: %v", code, res, err)
-				c.Logger().Error(err)
-			}
-		} else {
-			c.JSON(code, err)
-		}
-	}
-	var contentHandler = echo.WrapHandler(http.FileServer(http.FS(content)))
-
-	// The embedded files will all be in the '/goCloudK8sUserGroupFront/dist/' folder so need to rewrite the request (could also do this with fs.Sub)
-	var contentRewrite = middleware.Rewrite(map[string]string{"/*": fmt.Sprintf("/%s$1", webRootDir)})
-	e.GET("/*", contentHandler, contentRewrite)
-
-	// Restricted group definition : we decide to only all authenticated calls to the URL /api
-	r := e.Group(restrictedUrl)
-	// Configure middleware with the custom claims type
-	configJwt := echojwt.Config{
-		ContextKey: "jwtdata",
-		SigningKey: JwtSecret,
-
-		ParseTokenFunc: func(c echo.Context, auth string) (interface{}, error) {
-			verifier, _ := jwt.NewVerifierHS(jwt.HS512, JwtSecret)
-			// claims are of type `jwt.MapClaims` when token is created with `jwt.Parse`
-			token, err := jwt.Parse([]byte(auth), verifier)
-			if err != nil {
-				return nil, err
-			}
-			// get REGISTERED claims
-			var newClaims jwt.RegisteredClaims
-			err = json.Unmarshal(token.Claims(), &newClaims)
-			if err != nil {
-				return nil, err
-			}
-
-			l.Debug("JWT ParseTokenFunc, Algorithm %v", token.Header().Algorithm)
-			l.Debug("JWT ParseTokenFunc, Type      %v", token.Header().Type)
-			l.Debug("JWT ParseTokenFunc, Claims    %v", string(token.Claims()))
-			l.Debug("JWT ParseTokenFunc, Payload   %v", string(token.PayloadPart()))
-			l.Debug("JWT ParseTokenFunc, Token     %v", string(token.Bytes()))
-			l.Debug("JWT ParseTokenFunc, ParseTokenFunc : Claims:    %+v", string(token.Claims()))
-			if newClaims.IsValidAt(time.Now()) {
-				claims := JwtCustomClaims{}
-				err := token.DecodeClaims(&claims)
-				if err != nil {
-					return nil, errors.New("token cannot be parsed")
-				}
-				// IF USER IS DEACTIVATED  token should be invalidated RETURN 401 Unauthorized
-				// TODO: find a way to call this function (in User microservice)
-				//currentUserId := claims.Id
-				//if store.IsUserActive(currentUserId) {
-				//	return token, nil // ALL IS GOOD HERE
-				//} else {
-				// return nil, errors.New("token invalid because user account has been deactivated")
-				//}
-				//l.Printf("💥💥 ERROR: 'in  content.ReadFile(%s) got error: %v'", errorPage, err)
-				return token, nil // ALL IS GOOD HERE
-			} else {
-				l.Error("JWT ParseTokenFunc,  : IsValidAt(%+v)", time.Now())
-				return nil, errors.New("token has expired")
-			}
-
-		},
-	}
-	r.Use(echojwt.WithConfig(configJwt))
-
-	var defaultHttpLogger *log.Logger
-	defaultHttpLogger, err := l.GetDefaultLogger()
-	if err != nil {
-		// in case we cannot get a valid log.Logger for http let's create a reasonable one
-		defaultHttpLogger = log.New(os.Stderr, "NewGoHttpServer::defaultHttpLogger", log.Ldate|log.Ltime|log.Lshortfile)
-	}
-
-	myServer := GoHttpServer{
-		listenAddress: listenAddress,
-		log:           l,
-		r:             r,
-		e:             e,
-		router:        myServerMux,
-		startTime:     time.Now(),
-		httpServer: http.Server{
-			Addr:         listenAddress,       // configure the bind address
-			ErrorLog:     defaultHttpLogger,   // set the logger for the server
-			ReadTimeout:  defaultReadTimeout,  // max time to read request from the client
-			WriteTimeout: defaultWriteTimeout, // max time to write response to the client
-			IdleTimeout:  defaultIdleTimeout,  // max time for connections using TCP Keep-Alive
-		},
-	}
-
-	return &myServer
+func getHtmlHeader(title string, description string) string {
+	return fmt.Sprintf("%s<meta name=\"description\" content=\"%s\"><title>%s</title></head>", htmlHeaderStart, description, title)
 }
 
-// GetEcho  returns a pointer to the Echo reference
-func (s *GoHttpServer) GetEcho() *echo.Echo {
-	return s.e
+func getHtmlPage(title string, description string) string {
+	return getHtmlHeader(title, description) +
+		fmt.Sprintf("\n<body><div class=\"container\"><h4>%s</h4></div></body></html>", title)
 }
-
-// GetRestrictedGroup  adds a handler for this web server
-func (s *GoHttpServer) GetRestrictedGroup() *echo.Group {
-	return s.r
-}
-
-// AddGetRoute  adds a handler for this web server
-func (s *GoHttpServer) AddGetRoute(baseURL string, urlPath string, handler echo.HandlerFunc) {
-	// the next route is not restricted with jwt token
-	s.e.GET(baseURL+urlPath, handler)
-
-}
-
-//############# BEGIN K8S standard Echo HANDLERS
-
-func (s *GoHttpServer) GetReadinessHandler(readyFunc FuncAreWeReady, msg string) echo.HandlerFunc {
-	handlerName := "GetReadinessHandler"
-	s.log.Debug(initCallMsg, handlerName)
-	return echo.HandlerFunc(func(ctx echo.Context) error {
-		ready := readyFunc(msg)
-		r := ctx.Request()
-		s.log.Debug(formatTraceRequest, handlerName, r.Method, r.URL.Path, r.RemoteAddr, msg, ready)
-		if ready {
-			msgOK := fmt.Sprintf("GetReadinessHandler: (%s) is ready: %#v ", msg, ready)
-			return ctx.JSON(http.StatusOK, msgOK)
-		} else {
-			msgErr := fmt.Sprintf("GetReadinessHandler: (%s) is not ready: %#v ", msg, ready)
-			return echo.NewHTTPError(http.StatusInternalServerError, msgErr)
-		}
-	})
-}
-func (s *GoHttpServer) GetHealthHandler(healthyFunc FuncAreWeHealthy, msg string) echo.HandlerFunc {
-	handlerName := "GetHealthHandler"
-	s.log.Debug(initCallMsg, handlerName)
-	return echo.HandlerFunc(func(ctx echo.Context) error {
-		healthy := healthyFunc(msg)
-		r := ctx.Request()
-		s.log.Debug(formatTraceRequest, handlerName, r.Method, r.URL.Path, r.RemoteAddr, msg, healthy)
-		if healthy {
-			msgOK := fmt.Sprintf("GetHealthHandler: (%s) is healthy: %#v ", msg, healthy)
-			return ctx.JSON(http.StatusOK, msgOK)
-		} else {
-			msgErr := fmt.Sprintf("GetHealthHandler: (%s) is not healthy: %#v ", msg, healthy)
-			return echo.NewHTTPError(http.StatusInternalServerError, msgErr)
-		}
-	})
-}
-
-// StartServer initializes all the handlers paths of this web server, it is called inside the NewGoHttpServer constructor
-func (s *GoHttpServer) StartServer() error {
-
-	// Starting the web server in his own goroutine
-	go func() {
-		s.log.Info("starting http server listening at %s://localhost%s/", defaultProtocol, s.listenAddress)
-		err := s.e.StartServer(&s.httpServer)
-		if err != nil && err != http.ErrServerClosed {
-			s.log.Fatal("💥💥 error could not listen on tcp port %q. error: %s", s.listenAddress, err)
-		}
-	}()
-	s.log.Debug("Server listening on : %s PID:[%d]", s.httpServer.Addr, os.Getpid())
-
-	// Graceful Shutdown on SIGINT (interrupt)
-	waitForShutdownToExit(&s.httpServer, secondsShutDownTimeout)
-	return nil
+func TraceRequest(handlerName string, r *http.Request, l golog.MyLogger) {
+	const formatTraceRequest = "TraceRequest:[%s] %s '%s', RemoteIP: [%s],id:%s\n"
+	remoteIp := r.RemoteAddr // ip address of the original request or the last proxy
+	requestedUrlPath := r.URL.Path
+	guid := xid.New()
+	l.Debug(formatTraceRequest, handlerName, r.Method, requestedUrlPath, remoteIp, guid.String())
 }
