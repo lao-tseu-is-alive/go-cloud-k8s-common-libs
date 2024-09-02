@@ -76,61 +76,6 @@ func NewGoHttpServer(listenAddress string, Auth Authentication, JwtCheck JwtChec
 
 	// Restricted group definition : we decide to only all authenticated calls to the URL /api
 	r := e.Group(restrictedUrl)
-	/*
-		// Configure middleware with the custom claims type
-		configJwt := echojwt.Config{
-			ContextKey: "jwtdata",
-			SigningKey: JwtSecret,
-
-			ParseTokenFunc: func(c echo.Context, auth string) (interface{}, error) {
-				//verifier, _ := jwt.NewVerifierHS(jwt.HS512, JwtSecret)
-				verifier, err := jwt.NewVerifierHS(jwt.HS512, []byte(JwtSecret))
-				if err != nil {
-					return nil, errors.New(fmt.Sprintf("error in ParseToken creating verifier: %s", err))
-				}
-				// claims are of type `jwt.MapClaims` when token is created with `jwt.Parse`
-				token, err := jwt.Parse([]byte(auth), verifier)
-				if err != nil {
-					return nil, errors.New(fmt.Sprintf("error in ParseToken parsing token: %s", err))
-				}
-				// get REGISTERED claims
-				var newClaims jwt.RegisteredClaims
-				err = json.Unmarshal(token.Claims(), &newClaims)
-				if err != nil {
-					return nil, err
-				}
-
-				l.Debug("JWT ParseTokenFunc, Algorithm %v", token.Header().Algorithm)
-				l.Debug("JWT ParseTokenFunc, Type      %v", token.Header().Type)
-				l.Debug("JWT ParseTokenFunc, Claims    %v", string(token.Claims()))
-				l.Debug("JWT ParseTokenFunc, Payload   %v", string(token.PayloadPart()))
-				l.Debug("JWT ParseTokenFunc, Token     %v", string(token.Bytes()))
-				l.Debug("JWT ParseTokenFunc, ParseTokenFunc : Claims:    %+v", string(token.Claims()))
-				if newClaims.IsValidAt(time.Now()) {
-					claims := JwtCustomClaims{}
-					err := token.DecodeClaims(&claims)
-					if err != nil {
-						return nil, errors.New("token cannot be parsed")
-					}
-					// IF USER IS DEACTIVATED  token should be invalidated RETURN 401 Unauthorized
-					// find a way to call this function (in User microservice)
-					//currentUserId := claims.Id
-					//if store.IsUserActive(currentUserId) {
-					//	return token, nil // ALL IS GOOD HERE
-					//} else {
-					// return nil, errors.New("token invalid because user account has been deactivated")
-					//}
-					//l.Printf("💥💥 ERROR: 'in  content.ReadFile(%s) got error: %v'", errorPage, err)
-					return token, nil // ALL IS GOOD HERE
-				} else {
-					l.Error("JWT ParseTokenFunc,  : IsValidAt(%+v)", time.Now())
-					return nil, errors.New("token has expired")
-				}
-
-			},
-		}
-		r.Use(echojwt.WithConfig(configJwt))
-	*/
 	r.Use(JwtCheck.JwtMiddleware)
 
 	var defaultHttpLogger *log.Logger
