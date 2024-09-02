@@ -32,7 +32,7 @@ const (
 	defaultWebRootDir          = "goCloudK8sExampleFront/dist/"
 	defaultSqlDbMigrationsPath = "db/migrations"
 	defaultAdminUser           = "goadmin"
-	defaultAdminEmail          = "goadmin@lausanne.ch"
+	defaultAdminEmail          = "goadmin@yourdomain.org"
 	defaultAdminId             = 960901
 	charsetUTF8                = "charset=UTF-8"
 	MIMEHtml                   = "text/html"
