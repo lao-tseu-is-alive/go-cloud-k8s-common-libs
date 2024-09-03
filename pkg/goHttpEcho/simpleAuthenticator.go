@@ -22,6 +22,9 @@ type SimpleAdminAuthenticator struct {
 
 // AuthenticateUser Implement the AuthenticateUser method for SimpleAdminAuthenticator
 func (sa *SimpleAdminAuthenticator) AuthenticateUser(userLogin, passwordHash string) bool {
+	l := sa.jwtChecker.GetLogger()
+	l.Info("mainAdminUserLogin: %s", userLogin)
+	//l.Info("mainAdminPasswordHash: %s", passwordHash)
 	if userLogin == sa.mainAdminUserLogin && passwordHash == sa.mainAdminPasswordHash {
 		return true
 	}
@@ -47,8 +50,9 @@ func NewSimpleAdminAuthenticator(mainAdminUser, mainAdminPassword, mainAdminEmai
 	h := sha256.New()
 	h.Write([]byte(mainAdminPassword))
 	mainAdminPasswordHash := fmt.Sprintf("%x", h.Sum(nil))
-	l.Debug("mainAdminUserLogin: %s", mainAdminUser)
-	l.Debug("mainAdminPasswordHash: %s", mainAdminPasswordHash)
+	l.Info("mainAdminUserLogin: %s", mainAdminUser)
+	//l.Info("mainAdminUserPassword: %s", mainAdminPassword)
+	//l.Info("mainAdminPasswordHash: %s", mainAdminPasswordHash)
 	return &SimpleAdminAuthenticator{
 		mainAdminUserLogin:    mainAdminUser,
 		mainAdminPasswordHash: mainAdminPasswordHash,

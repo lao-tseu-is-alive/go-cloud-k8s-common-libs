@@ -36,10 +36,28 @@ type Server struct {
 	httpServer    http.Server
 }
 
-// NewGoHttpServer is a constructor that initializes the server,routes and all fields in Server type
-func NewGoHttpServer(listenAddress string, Auth Authentication, JwtCheck JwtChecker, Ver VersionReader, l golog.MyLogger, webRootDir string, content embed.FS, restrictedUrl string) *Server {
-	myServerMux := http.NewServeMux()
+type Config struct {
+	ListenAddress string
+	Authenticator Authentication
+	JwtCheck      JwtChecker
+	VersionReader VersionReader
+	Logger        golog.MyLogger
+	WebRootDir    string
+	Content       embed.FS
+	RestrictedUrl string
+}
 
+// NewGoHttpServer is a constructor that initializes the server,routes and all fields in Server type
+func NewGoHttpServer(serverConfig *Config) *Server {
+	l := serverConfig.Logger
+	listenAddress := serverConfig.ListenAddress
+	Auth := serverConfig.Authenticator
+	JwtCheck := serverConfig.JwtCheck
+	Ver := serverConfig.VersionReader
+	webRootDir := serverConfig.WebRootDir
+	content := serverConfig.Content
+	restrictedUrl := serverConfig.RestrictedUrl
+	myServerMux := http.NewServeMux()
 	e := echo.New()
 	e.HideBanner = true
 	e.Use(middleware.CORS())
@@ -108,22 +126,21 @@ func NewGoHttpServer(listenAddress string, Auth Authentication, JwtCheck JwtChec
 }
 
 // CreateNewServerFromEnvOrFail creates a new server from environment variables or fails
-func CreateNewServerFromEnvOrFail(
-	defaultPort int,
-	defaultServerIp string,
-	myAuthenticator Authentication,
-	myJwt JwtChecker,
-	myVersionReader VersionReader,
-	l golog.MyLogger,
-	webRootDir string,
-	content embed.FS,
-	restrictedUrl string,
-) *Server {
+func CreateNewServerFromEnvOrFail(defaultPort int, defaultServerIp string, srvConfig *Config) *Server {
 	listenPort := config.GetPortFromEnvOrPanic(defaultPort)
-	listenAddr := fmt.Sprintf("%s:%d", defaultServerIp, listenPort)
-	l.Info("HTTP server will listen : %s", listenAddr)
+	listenIP := config.GetListenIpFromEnvOrPanic(defaultServerIp)
+	listenAddr := fmt.Sprintf("%s:%d", listenIP, listenPort)
 
-	server := NewGoHttpServer(listenAddr, myAuthenticator, myJwt, myVersionReader, l, webRootDir, content, restrictedUrl)
+	server := NewGoHttpServer(&Config{
+		ListenAddress: listenAddr,
+		Authenticator: srvConfig.Authenticator,
+		JwtCheck:      srvConfig.JwtCheck,
+		VersionReader: srvConfig.VersionReader,
+		Logger:        srvConfig.Logger,
+		WebRootDir:    srvConfig.WebRootDir,
+		Content:       srvConfig.Content,
+		RestrictedUrl: srvConfig.RestrictedUrl,
+	})
 	return server
 
 }

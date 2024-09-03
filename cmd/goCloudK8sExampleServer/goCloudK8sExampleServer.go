@@ -64,7 +64,7 @@ func (s Service) login(ctx echo.Context) error {
 	goHttpEcho.TraceRequest("login", ctx.Request(), s.Logger)
 	login := ctx.FormValue("login")
 	passwordHash := ctx.FormValue("hashed")
-	s.Logger.Debug("login: %s ", login)
+	s.Logger.Debug("login: %s, hash: %s ", login, passwordHash)
 	// maybe it was not a form but a fetch data post
 	if len(strings.Trim(login, " ")) < 1 {
 		return ctx.JSON(http.StatusUnauthorized, "invalid credentials")
@@ -182,14 +182,17 @@ func main() {
 
 	server := goHttpEcho.CreateNewServerFromEnvOrFail(
 		defaultPort,
-		"0.0.0.0",       // defaultServerIp,
-		myAuthenticator, // Authentication interface,
-		myJwt,           // JwtCheck,
-		myVersionReader,
-		l,
-		defaultWebRootDir,
-		content, // embed.FS	where the FrontEnd is stored
-		"/api",
+		"0.0.0.0", // defaultServerIp,
+		&goHttpEcho.Config{
+			ListenAddress: "",
+			Authenticator: myAuthenticator,
+			JwtCheck:      myJwt,
+			VersionReader: myVersionReader,
+			Logger:        l,
+			WebRootDir:    defaultWebRootDir,
+			Content:       content,
+			RestrictedUrl: "/api/v1",
+		},
 	)
 
 	e := server.GetEcho()

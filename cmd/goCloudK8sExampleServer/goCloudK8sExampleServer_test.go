@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/gohttpclient"
@@ -49,8 +50,15 @@ func TestMainExec(t *testing.T) {
 	}
 
 	formLogin := make(url.Values)
-	formLogin.Set("login", defaultUsername)
-	formLogin.Set("pass", defaultFakeStupidPass)
+	mainAdminUser := config.GetAdminUserFromFromEnvOrPanic(defaultAdminUser)
+	mainAdminPassword := config.GetAdminPasswordFromFromEnvOrPanic()
+	h := sha256.New()
+	h.Write([]byte(mainAdminPassword))
+	mainAdminPasswordHash := fmt.Sprintf("%x", h.Sum(nil))
+	fmt.Printf("## mainAdminUserLogin: %s", mainAdminUser)
+	//fmt.Printf("## mainAdminPasswordHash: %s", mainAdminPasswordHash)
+	formLogin.Set("login", mainAdminUser)
+	formLogin.Set("hashed", mainAdminPasswordHash)
 
 	tests := []testStruct{
 		{
