@@ -174,15 +174,15 @@ func main() {
 		l)
 	// Create a new Authenticator with a simple admin user
 	myAuthenticator := goHttpEcho.NewSimpleAdminAuthenticator(&goHttpEcho.UserInfo{
-		UserId:     config.GetAdminIdFromFromEnvOrPanic(defaultAdminId),
-		ExternalId: config.GetAdminExternalIdFromFromEnvOrPanic(9999999),
+		UserId:     config.GetAdminIdFromEnvOrPanic(defaultAdminId),
+		ExternalId: config.GetAdminExternalIdFromEnvOrPanic(9999999),
 		Name:       "NewSimpleAdminAuthenticator_Admin",
-		Email:      config.GetAdminEmailFromFromEnvOrPanic(defaultAdminEmail),
-		Login:      config.GetAdminUserFromFromEnvOrPanic(defaultAdminUser),
+		Email:      config.GetAdminEmailFromEnvOrPanic(defaultAdminEmail),
+		Login:      config.GetAdminUserFromEnvOrPanic(defaultAdminUser),
 		IsAdmin:    false,
 	},
 
-		config.GetAdminPasswordFromFromEnvOrPanic(),
+		config.GetAdminPasswordFromEnvOrPanic(),
 		myJwt)
 
 	server := goHttpEcho.CreateNewServerFromEnvOrFail(

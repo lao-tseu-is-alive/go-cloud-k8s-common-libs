@@ -50,8 +50,8 @@ func TestMainExec(t *testing.T) {
 	}
 
 	formLogin := make(url.Values)
-	mainAdminUser := config.GetAdminUserFromFromEnvOrPanic(defaultAdminUser)
-	mainAdminPassword := config.GetAdminPasswordFromFromEnvOrPanic()
+	mainAdminUser := config.GetAdminUserFromEnvOrPanic(defaultAdminUser)
+	mainAdminPassword := config.GetAdminPasswordFromEnvOrPanic()
 	h := sha256.New()
 	h.Write([]byte(mainAdminPassword))
 	mainAdminPasswordHash := fmt.Sprintf("%x", h.Sum(nil))
