@@ -25,11 +25,12 @@ type JwtChecker interface {
 
 // UserInfo are custom claims extending default ones.
 type UserInfo struct {
-	UserId  int    `json:"user_id"`
-	Name    string `json:"name"`
-	Email   string `json:"email"`
-	Login   string `json:"login"`
-	IsAdmin bool   `json:"is_admin"`
+	UserId     int    `json:"user_id"`
+	ExternalId int    `json:"external_id"`
+	Name       string `json:"name"`
+	Email      string `json:"email"`
+	Login      string `json:"login"`
+	IsAdmin    bool   `json:"is_admin"`
 }
 
 // JwtCustomClaims are custom claims extending default ones.

@@ -76,6 +76,21 @@ func GetAdminIdFromFromEnvOrPanic(defaultAdminId int) int {
 	return adminId
 }
 
+// GetAdminExternalIdFromFromEnvOrPanic returns the admin user id to be used with JWT authentication from the content of the env variable
+// ADMIN_EXTERNAL_ID : string containing the external user id to use for the administrative account
+func GetAdminExternalIdFromFromEnvOrPanic(defaultAdminExternalId int) int {
+	adminId := defaultAdminExternalId
+	var err error
+	val, exist := os.LookupEnv("ADMIN_EXTERNAL_ID")
+	if exist {
+		adminId, err = strconv.Atoi(val)
+		if err != nil {
+			panic(fmt.Errorf("💥💥 ERROR: ENV ADMIN_EXTERNAL_ID should contain a valid integer. %v", err))
+		}
+	}
+	return adminId
+}
+
 // GetAdminPasswordFromFromEnvOrPanic returns the admin password to be used with JWT authentication from the content of the env variable :
 //
 //	ADMIN_PASSWORD : string containing the password to use for the administrative account

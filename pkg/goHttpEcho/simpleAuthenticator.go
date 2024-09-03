@@ -17,6 +17,7 @@ type SimpleAdminAuthenticator struct {
 	mainAdminPasswordHash string
 	mainAdminEmail        string
 	mainAdminId           int
+	mainAdminExternalId   int
 	jwtChecker            JwtChecker
 }
 
@@ -35,29 +36,31 @@ func (sa *SimpleAdminAuthenticator) AuthenticateUser(userLogin, passwordHash str
 // GetUserInfoFromLogin Get the JWT claims from the login User
 func (sa *SimpleAdminAuthenticator) GetUserInfoFromLogin(login string) (*UserInfo, error) {
 	user := &UserInfo{
-		UserId:  sa.mainAdminId,
-		Name:    fmt.Sprintf("SimpleAdminAuthenticator_%s", sa.mainAdminUserLogin),
-		Email:   sa.mainAdminEmail,
-		Login:   login,
-		IsAdmin: true,
+		UserId:     sa.mainAdminId,
+		ExternalId: sa.mainAdminExternalId,
+		Name:       fmt.Sprintf("SimpleAdminAuthenticator_%s", sa.mainAdminUserLogin),
+		Email:      sa.mainAdminEmail,
+		Login:      login,
+		IsAdmin:    true,
 	}
 	return user, nil
 }
 
 // NewSimpleAdminAuthenticator Function to create an instance of SimpleAdminAuthenticator
-func NewSimpleAdminAuthenticator(mainAdminUser, mainAdminPassword, mainAdminEmail string, mainAdminId int, jwtCheck JwtChecker) Authentication {
+func NewSimpleAdminAuthenticator(u *UserInfo, mainAdminPassword string, jwtCheck JwtChecker) Authentication {
 	l := jwtCheck.GetLogger()
 	h := sha256.New()
 	h.Write([]byte(mainAdminPassword))
 	mainAdminPasswordHash := fmt.Sprintf("%x", h.Sum(nil))
-	l.Info("mainAdminUserLogin: %s", mainAdminUser)
+	l.Info("mainAdminUserLogin: %s", u.Login)
 	//l.Info("mainAdminUserPassword: %s", mainAdminPassword)
 	//l.Info("mainAdminPasswordHash: %s", mainAdminPasswordHash)
 	return &SimpleAdminAuthenticator{
-		mainAdminUserLogin:    mainAdminUser,
+		mainAdminUserLogin:    u.Login,
 		mainAdminPasswordHash: mainAdminPasswordHash,
-		mainAdminEmail:        mainAdminEmail,
-		mainAdminId:           mainAdminId,
+		mainAdminEmail:        u.Email,
+		mainAdminId:           u.UserId,
+		mainAdminExternalId:   u.ExternalId,
 		jwtChecker:            jwtCheck,
 	}
 }
