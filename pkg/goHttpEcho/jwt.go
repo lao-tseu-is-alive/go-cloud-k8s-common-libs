@@ -70,7 +70,7 @@ func (ji *JwtInfo) ParseToken(jwtToken string) (*JwtCustomClaims, error) {
 	l.Debug("JWT ParseToken, Type      %v", token.Header().Type)
 	l.Debug("JWT ParseToken, Claims    %v", string(token.Claims()))
 	l.Debug("JWT ParseToken, Payload   %v", string(token.PayloadPart()))
-	l.Debug("JWT ParseToken, Token     %v", string(token.Bytes()))
+	//l.Debug("JWT ParseToken, Token     %v", string(token.Bytes()))
 	l.Debug("JWT ParseToken, ParseTokenFunc : Claims:    %+v", string(token.Claims()))
 	if newClaims.IsValidAt(time.Now()) {
 		claims := JwtCustomClaims{}

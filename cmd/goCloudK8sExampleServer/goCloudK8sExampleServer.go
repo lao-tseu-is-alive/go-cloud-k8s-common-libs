@@ -64,7 +64,7 @@ func (s Service) login(ctx echo.Context) error {
 	goHttpEcho.TraceRequest("login", ctx.Request(), s.Logger)
 	login := ctx.FormValue("login")
 	passwordHash := ctx.FormValue("hashed")
-	s.Logger.Debug("login: %s , hash: %s ", login, passwordHash)
+	s.Logger.Debug("login: %s ", login)
 	// maybe it was not a form but a fetch data post
 	if len(strings.Trim(login, " ")) < 1 {
 		return ctx.JSON(http.StatusUnauthorized, "invalid credentials")
@@ -87,7 +87,7 @@ func (s Service) login(ctx echo.Context) error {
 		response := map[string]string{
 			"token": token.String(),
 		}
-		s.Logger.Info("LoginUser(%s) successful login, token : %s", login, token.String())
+		s.Logger.Info("LoginUser(%s) successful login", login)
 		return ctx.JSON(http.StatusOK, response)
 	} else {
 		return ctx.JSON(http.StatusUnauthorized, "username not found or password invalid")
