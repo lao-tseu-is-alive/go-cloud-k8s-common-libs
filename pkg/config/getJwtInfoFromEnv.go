@@ -3,11 +3,13 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"unicode/utf8"
 )
 
 const minSecretLength = 16
+const minContextKeyLength = 6
 
 // GetJwtSecretFromEnvOrPanic returns a secret to be used with JWT based on the content of the env variable
 // JWT_SECRET : should exist and contain a string with your secret or this function will panic
@@ -33,6 +35,25 @@ func GetJwtIssuerFromEnvOrPanic() string {
 	if utf8.RuneCountInString(val) < minSecretLength {
 		panic(fmt.Sprintf("💥💥 ERROR: CONFIG ENV JWT_ISSUER_ID should contain at least %d characters (got %d).",
 			minSecretLength, utf8.RuneCountInString(val)))
+	}
+	return fmt.Sprintf("%s", val)
+}
+
+// GetJwtContextKeyFromEnvOrPanic returns a secret to be used with JWT based on the content of the env variable
+// JWT_CONTEXT_KEY : should exist and contain a string with your secret or this function will panic
+func GetJwtContextKeyFromEnvOrPanic() string {
+	val, exist := os.LookupEnv("JWT_CONTEXT_KEY")
+	if !exist {
+		panic("💥💥 ERROR: ENV JWT_CONTEXT_KEY should contain your JWT ISSUER ID secret.")
+	}
+	if utf8.RuneCountInString(val) < minContextKeyLength {
+		panic(fmt.Sprintf("💥💥 ERROR: CONFIG ENV JWT_CONTEXT_KEY should contain at least %d characters (got %d).",
+			minContextKeyLength, utf8.RuneCountInString(val)))
+	}
+	// Check if the value contains only letters
+	match, _ := regexp.MatchString("^[a-zA-Z]+$", val)
+	if !match {
+		panic("💥💥 ERROR: CONFIG ENV JWT_CONTEXT_KEY should contain only letters (a-z, A-Z).")
 	}
 	return fmt.Sprintf("%s", val)
 }

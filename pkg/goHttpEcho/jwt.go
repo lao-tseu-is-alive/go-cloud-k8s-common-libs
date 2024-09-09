@@ -183,12 +183,13 @@ func (ji *JwtInfo) GetJwtCustomClaimsFromContext(c echo.Context) *JwtCustomClaim
 }
 
 // NewJwtChecker creates a new JwtChecker
-func NewJwtChecker(secret, issuer, subject string, duration int, l golog.MyLogger) JwtChecker {
+func NewJwtChecker(secret, issuer, subject, contextKey string, duration int, l golog.MyLogger) JwtChecker {
 	return &JwtInfo{
-		Secret:   secret,
-		Duration: duration,
-		IssuerId: issuer,
-		Subject:  subject,
-		logger:   l,
+		Secret:        secret,
+		Duration:      duration,
+		IssuerId:      issuer,
+		Subject:       subject,
+		JwtContextKey: contextKey,
+		logger:        l,
 	}
 }
