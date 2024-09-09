@@ -55,6 +55,7 @@ jobs:
         PORT: 9999
         JWT_SECRET: ${{ secrets.JWT_SECRET }}
         JWT_ISSUER_ID: ${{ secrets.JWT_ISSUER_ID }}
+        JWT_CONTEXT_KEY: ${{ secrets.JWT_CONTEXT_KEY }}
         JWT_DURATION_MINUTES: 240
         ADMIN_USER: ${{ secrets.ADMIN_USER }}
         ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}

@@ -170,6 +170,7 @@ func main() {
 		config.GetJwtSecretFromEnvOrPanic(),
 		config.GetJwtIssuerFromEnvOrPanic(),
 		APP,
+		config.GetJwtContextKeyFromEnvOrPanic(),
 		config.GetJwtDurationFromEnvOrPanic(60),
 		l)
 	// Create a new Authenticator with a simple admin user
