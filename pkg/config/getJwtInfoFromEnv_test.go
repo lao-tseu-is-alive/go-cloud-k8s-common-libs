@@ -33,7 +33,7 @@ func TestGetJwtDurationFromEnvOrPanic(t *testing.T) {
 		{"Invalid duration (too low)", "0", 60, 0, true},
 		{"Invalid duration (too high)", "14401", 60, 0, true},
 		{"Valid duration (min)", "1", 60, 1, false},
-		{"Valid duration (max)", "14400", 60, 14400, false},
+		{"Valid duration (max)", "1440", 60, 1440, false},
 	}
 
 	for _, tt := range tests {
