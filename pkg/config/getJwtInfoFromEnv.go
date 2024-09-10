@@ -59,7 +59,7 @@ func GetJwtContextKeyFromEnvOrPanic() string {
 }
 
 // GetJwtDurationFromEnvOrPanic returns a number  string based on the values of environment variable :
-// JWT_DURATION_MINUTES : int value between 1 and 14400 minutes, 10 days seems an extreme max value
+// JWT_DURATION_MINUTES : int value between 1 and 1440 minutes, 24H or 1 day is the maximum duration
 // the parameter defaultJwtDuration will be used if this env variable is not defined
 // in case the ENV variable JWT_DURATION_MINUTES exists and contains an invalid integer the functions ends execution with Fatalreturns 0 and an error
 func GetJwtDurationFromEnvOrPanic(defaultJwtDuration int) int {
@@ -72,8 +72,8 @@ func GetJwtDurationFromEnvOrPanic(defaultJwtDuration int) int {
 			panic("💥💥 ERROR: CONFIG ENV JWT_DURATION_MINUTES should contain a valid integer.")
 		}
 	}
-	if JwtDuration < 1 || JwtDuration > 14400 {
-		panic("💥💥 ERROR: CONFIG ENV JWT_DURATION_MINUTES should contain an integer between 1 and 14400")
+	if JwtDuration < 1 || JwtDuration > 1440 {
+		panic("💥💥 ERROR: CONFIG ENV JWT_DURATION_MINUTES should contain an integer between 1 and 1440")
 	}
 	return JwtDuration
 }
