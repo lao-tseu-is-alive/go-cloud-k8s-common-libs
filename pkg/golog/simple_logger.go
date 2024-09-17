@@ -88,5 +88,5 @@ func (l *SimpleLogger) GetDefaultLogger() (*log.Logger, error) {
 func (l *SimpleLogger) TraceHttpRequest(handlerName string, r *http.Request) {
 	remoteIp := r.RemoteAddr // ip address of the original request or the last proxy
 	requestedUrlPath := r.URL.Path
-	l.Trace("TRACE ➡️ [%s] : %s, %s, %s", handlerName, r.Method, requestedUrlPath, remoteIp)
+	l.logger.Output(2, fmt.Sprintf("%sTraceHttp➡️ [%s] : %s, %s, %s%s", green, handlerName, r.Method, requestedUrlPath, remoteIp, reset))
 }
