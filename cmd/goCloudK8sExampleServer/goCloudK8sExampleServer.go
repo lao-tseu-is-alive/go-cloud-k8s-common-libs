@@ -61,7 +61,7 @@ type Service struct {
 // you should use the jwt token returned from LoginUser  in github.com/lao-tseu-is-alive/go-cloud-k8s-user-group'
 // and share the same secret with the above component
 func (s Service) login(ctx echo.Context) error {
-	goHttpEcho.TraceRequest("login", ctx.Request(), s.Logger)
+	s.Logger.TraceHttpRequest("login", ctx.Request())
 	login := ctx.FormValue("login")
 	passwordHash := ctx.FormValue("hashed")
 	s.Logger.Debug("login: %s, hash: %s ", login, passwordHash)
@@ -95,7 +95,7 @@ func (s Service) login(ctx echo.Context) error {
 }
 
 func (s Service) restricted(ctx echo.Context) error {
-	goHttpEcho.TraceRequest("restricted", ctx.Request(), s.Logger)
+	s.Logger.TraceHttpRequest("restricted", ctx.Request())
 	// get the current user from JWT TOKEN
 	claims := s.server.JwtCheck.GetJwtCustomClaimsFromContext(ctx)
 	currentUserId := claims.User.UserId
@@ -181,6 +181,7 @@ func main() {
 		Email:      config.GetAdminEmailFromEnvOrPanic(defaultAdminEmail),
 		Login:      config.GetAdminUserFromEnvOrPanic(defaultAdminUser),
 		IsAdmin:    false,
+		Groups:     []int{1}, // this is the group id of the global_admin group
 	},
 
 		config.GetAdminPasswordFromEnvOrPanic(),

@@ -42,6 +42,7 @@ func (sa *SimpleAdminAuthenticator) GetUserInfoFromLogin(login string) (*UserInf
 		Email:      sa.mainAdminEmail,
 		Login:      login,
 		IsAdmin:    true,
+		Groups:     []int{1}, // this is the group id of the global_admin group
 	}
 	return user, nil
 }

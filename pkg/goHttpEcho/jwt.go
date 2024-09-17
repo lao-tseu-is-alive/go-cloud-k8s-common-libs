@@ -31,6 +31,7 @@ type UserInfo struct {
 	Email      string `json:"email"`
 	Login      string `json:"login"`
 	IsAdmin    bool   `json:"is_admin"`
+	Groups     []int  `json:"groups"`
 }
 
 // JwtCustomClaims are custom claims extending default ones.
@@ -108,10 +109,10 @@ func (ji *JwtInfo) JwtMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 			// ok so classic Auth header is missing, let's check if sec-websocket-protocol is present in case of websocket
 			authHeader = r.Header.Get("Sec-Websocket-Protocol")
 			if authHeader == "" {
-				const msg = "JwtMiddleware : Authorization header missing"
-				TraceRequest(msg, r, ji.logger)
+				const msg = "JwtMiddleware: ⚠️ Authorization header missing"
+				ji.logger.TraceHttpRequest(msg, r)
 				ji.logger.Error(msg)
-				return echo.NewHTTPError(http.StatusBadRequest, msg).SetInternal(errors.New(msg))
+				return echo.NewHTTPError(http.StatusUnauthorized, msg).SetInternal(errors.New(msg))
 			}
 		}
 		// get the token from the request
@@ -122,8 +123,8 @@ func (ji *JwtInfo) JwtMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		// check if the token is valid
 		jwtClaims, err := ji.ParseToken(tokenString)
 		if err != nil {
-			msg := fmt.Sprintf("JwtMiddleware : Invalid token error: %s\ntoken: '%s'", err, tokenString)
-			TraceRequest(msg, r, ji.logger)
+			msg := fmt.Sprintf("JwtMiddleware: ⚠️ Invalid token error: %s\ntoken: '%s'", err, tokenString)
+			ji.logger.TraceHttpRequest(msg, r)
 			ji.logger.Error(msg)
 			return echo.NewHTTPError(http.StatusUnauthorized, msg).SetInternal(errors.New(msg))
 		}

@@ -9,7 +9,6 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
-	"github.com/rs/xid"
 	"log"
 	"net/http"
 	"os"
@@ -66,7 +65,7 @@ func NewGoHttpServer(serverConfig *Config) *Server {
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
 		l.Debug("in customHTTPErrorHandler got error: %v", err)
 		re := c.Request()
-		TraceRequest("customHTTPErrorHandler", re, l)
+		l.TraceHttpRequest("customHTTPErrorHandler", re)
 		code := http.StatusInternalServerError
 		var he *echo.HTTPError
 		if errors.As(err, &he) {
@@ -229,11 +228,4 @@ func getHtmlHeader(title string, description string) string {
 func getHtmlPage(title string, description string) string {
 	return getHtmlHeader(title, description) +
 		fmt.Sprintf("\n<body><div class=\"container\"><h4>%s</h4></div></body></html>", title)
-}
-func TraceRequest(handlerName string, r *http.Request, l golog.MyLogger) {
-	const formatTraceRequest = "TraceRequest:[%s] %s '%s', RemoteIP: [%s],id:%s\n"
-	remoteIp := r.RemoteAddr // ip address of the original request or the last proxy
-	requestedUrlPath := r.URL.Path
-	guid := xid.New()
-	l.Debug(formatTraceRequest, handlerName, r.Method, requestedUrlPath, remoteIp, guid.String())
 }

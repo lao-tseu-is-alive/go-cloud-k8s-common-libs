@@ -20,5 +20,4 @@ const (
 	defaultNotFoundDescription = "🤔 ℍ𝕞𝕞... 𝕤𝕠𝕣𝕣𝕪 :【𝟜𝟘𝟜 : ℙ𝕒𝕘𝕖 ℕ𝕠𝕥 𝔽𝕠𝕦𝕟𝕕】🕳️ 🔥"
 	formatErrRequest           = "ERROR: Http method not allowed [%s] %s  path:'%s', RemoteAddrIP: [%s]\n"
 	fmtErrNewRequest           = "### ERROR http.NewRequest %s on [%s] error is :%v\n"
-	formatTraceRequest         = "TRACE: [%s] %s  path:'%s', RemoteAddrIP: [%s], msg: %s, val: %v"
 )

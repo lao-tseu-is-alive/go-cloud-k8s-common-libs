@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 )
 
@@ -41,6 +42,12 @@ func NewSimpleLogger(logLevel Level, prefix string) (MyLogger, error) {
 	return &SimpleLogger{logger: l, maxLevel: logLevel}, nil
 }
 
+func (l *SimpleLogger) Trace(msg string, v ...any) {
+	if l.maxLevel <= TraceLevel {
+		l.logger.Output(2, fmt.Sprintf("%sTRACE: %s%s", green, fmt.Sprintf(msg, v...), reset))
+	}
+}
+
 func (l *SimpleLogger) Debug(msg string, v ...any) {
 	if l.maxLevel <= DebugLevel {
 		l.logger.Output(2, fmt.Sprintf("%sDEBUG: %s%s", cyan, fmt.Sprintf(msg, v...), reset))
@@ -76,4 +83,10 @@ func (l *SimpleLogger) GetDefaultLogger() (*log.Logger, error) {
 	} else {
 		return nil, errors.New("sorry, no default logger initialized at this time")
 	}
+}
+
+func (l *SimpleLogger) TraceHttpRequest(handlerName string, r *http.Request) {
+	remoteIp := r.RemoteAddr // ip address of the original request or the last proxy
+	requestedUrlPath := r.URL.Path
+	l.Trace("TRACE ➡️ [%s] : %s, %s, %s", handlerName, r.Method, requestedUrlPath, remoteIp)
 }

@@ -1,21 +1,28 @@
 package golog
 
-import "log"
+import (
+	"log"
+	"net/http"
+)
 
 type MyLogger interface {
+	Trace(msg string, v ...interface{})
 	Debug(msg string, v ...interface{})
 	Info(msg string, v ...interface{})
 	Warn(msg string, v ...interface{})
 	Error(msg string, v ...interface{})
 	Fatal(msg string, v ...interface{})
 	GetDefaultLogger() (*log.Logger, error)
+	TraceHttpRequest(handlerName string, r *http.Request)
 }
 
 type Level int8
 
 const (
+	// TraceLevel defines trace log level.
+	TraceLevel Level = iota
 	// DebugLevel defines debug log level.
-	DebugLevel Level = iota
+	DebugLevel
 	// InfoLevel defines info log level.
 	InfoLevel
 	// WarnLevel defines warn log level.
