@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>goCloudK8sExampleFront</title>
     <link rel="stylesheet" href="style.css">
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/crypto-js.js"></script>
 </head>
 <body>
 <div class="container">
@@ -45,11 +44,19 @@
     const msg = document.getElementById("msg");
     let token = null;
     const tokenEl = document.getElementById("tokenExample");
+
+    async function hashPasswordSHA256(password) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         console.log("in loginForm submit event :", e)
         const inputPassword = document.getElementById("password");
-        const hashedPassword = CryptoJS.SHA256(inputPassword.value);
+        const hashedPassword = hashPasswordSHA256(`${inputPassword.value}`);
         const inputHashedPassword = document.getElementById("hashed");
         inputHashedPassword.value = hashedPassword;
         console.log("hashedPassword", hashedPassword);
