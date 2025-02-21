@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>goCloudK8sExampleFront</title>
     <link rel="stylesheet" href="style.css">
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/crypto-js.js"></script>
 </head>
 <body>
 <div class="container">
@@ -19,7 +20,7 @@
                 <label for="password">Password:</label><br/>
                 <input id="password" type="password" name="pass"
                        placeholder="Enter your password here" class="u-full-width">
-                <input type="hidden" id="hashed" name="hashed" >
+                <input type="hidden" id="hashed" name="hashed">
             </div>
         </div>
         <input type="submit" class="u-pull-right">
@@ -32,7 +33,7 @@
     <div class="row">
         <div class="twelve columns">
             <label for="tokenExample">Try your Token in your bash terminal :</label>
-            <textarea class="u-full-width"  id="tokenExample" rows="5">                   </textarea>
+            <textarea class="u-full-width" id="tokenExample" rows="5">                   </textarea>
         </div>
     </div>
 </div>
@@ -46,20 +47,23 @@
     const tokenEl = document.getElementById("tokenExample");
 
     async function hashPasswordSHA256(password) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+        console.log(`in hashPasswordSHA256 function ${password}`);
+        const encoder = new TextEncoder();
+        const data = encoder.encode(password);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         console.log("in loginForm submit event :", e)
         const inputPassword = document.getElementById("password");
-        const hashedPassword = hashPasswordSHA256(`${inputPassword.value}`);
+        //const hashedPassword = hashPasswordSHA256(`${inputPassword.value}`);
+        const hashedPassword = CryptoJS.SHA256(inputPassword.value);
         const inputHashedPassword = document.getElementById("hashed");
-        inputHashedPassword.value = hashedPassword;
-        console.log("hashedPassword", hashedPassword);
+        inputHashedPassword.value = hashedPassword.toString();
+        console.log("hashedPassword", inputHashedPassword.value);
         const inputs = loginForm.elements;
         if ((inputs.login.value.length > 0) && (inputs.password.value.length > 0)) {
             const data = new FormData(loginForm);
@@ -86,10 +90,10 @@ export TOKEN="${token}"
 
 curl -v  -H "Authorization: Bearer \${TOKEN}" http://localhost:6969/api/v1/secret|jq
             `;
-            msg.innerHTML = `response from server<pre>${niceToReadResponse}</pre>`;
-        } else {
-            msg.innerHTML = "<h4>Login and password values cannot be empty</h4>";
-        }
+                msg.innerHTML = `response from server<pre>${niceToReadResponse}</pre>`;
+            } else {
+                msg.innerHTML = "<h4>Login and password values cannot be empty</h4>";
+            }
     });
 
 </script>
