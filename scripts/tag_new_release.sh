@@ -20,6 +20,7 @@ if output=$(git status --porcelain) && [ -z "$output" ]; then
       echo "## ✓🚀 OK: ${APP_NAME} tag ${APP_VERSION}  was not found ! So let's add this tag..."
       git tag "v$APP_VERSION" -m "v$APP_VERSION bump"
       ./scripts/setAppBuildStampInfo.sh
+      git add pkg/version/version.go
       git commit -m 'updated version info'
       git push origin main
       echo "about to push tag ${APP_VERSION} : git push origin --tags"
