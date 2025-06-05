@@ -23,7 +23,7 @@ if output=$(git status --porcelain) && [ -z "$output" ]; then
       git commit -m 'updated version info'
       git push origin main
       echo "about to push tag ${APP_VERSION} : git push origin --tags"
-      #git push origin --tags
+      git push origin --tags
     fi
 else
   echo "## 💥💥 ERROR: \"${APP_NAME} source tree is DIRTY YOU MUST commit your code before doing a tag ${APP_VERSION} !\""

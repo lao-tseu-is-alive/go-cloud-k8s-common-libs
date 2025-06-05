@@ -3,8 +3,9 @@ SOURCE_CODE=pkg/version/version.go
 if [ -f "$SOURCE_CODE" ]; then
   NOW=$(date +%Y-%m-%dT%T)
   REVISION=$(git describe --dirty --always)
-  sed -i "s/BuildStamp = \"unknown\"/BuildStamp = \"$NOW\"/" $SOURCE_CODE
-  sed -i "s/REVISION   = \"unknown\"/REVISION = \"$REVISION\"/" $SOURCE_CODE
+  sed -i "s/^[[:space:]]*BuildStamp[[:space:]]*=[[:space:]]*\".*\"/BuildStamp = \"$NOW\"/" $SOURCE_CODE
+  sed -i "s/^[[:space:]]*REVISION[[:space:]]*=[[:space:]]*\".*\"/REVISION = \"$REVISION\"/" $SOURCE_CODE
+  gofmt -w $SOURCE_CODE
   echo "## Extracting app name and version from code in ${SOURCE_CODE}"
   APP_NAME=$(grep -E 'APP\s+=' $SOURCE_CODE| awk '{ print $3 }'  | tr -d '"')
   APP_VERSION=$(grep -E 'VERSION\s+=' $SOURCE_CODE| awk '{ print $3 }'  | tr -d '"')
