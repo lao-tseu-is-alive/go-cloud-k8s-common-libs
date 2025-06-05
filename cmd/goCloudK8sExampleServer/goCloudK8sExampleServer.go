@@ -120,7 +120,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("💥💥 error log.NewLogger error: %v'\n", err)
 	}
-	l.Info("🚀🚀 Starting App:'%s', ver:%s, from: %s", APP, version.VERSION, version.REPOSITORY)
+	l.Info("🚀🚀 Starting:'%s', v%s, rev:%s, build:%v from: %s", APP, version.VERSION, version.REVISION, version.BuildStamp, version.REPOSITORY)
 
 	dbDsn := config.GetPgDbDsnUrlFromEnvOrPanic(defaultDBIp, defaultDBPort, tools.ToSnakeCase(version.APP), version.AppSnake, defaultDBSslMode)
 	db, err := database.GetInstance("pgx", dbDsn, runtime.NumCPU(), l)
