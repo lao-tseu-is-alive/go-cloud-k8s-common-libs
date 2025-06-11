@@ -82,6 +82,7 @@ jobs:
         JWT_ISSUER_ID: ${{ secrets.JWT_ISSUER_ID }}
         JWT_CONTEXT_KEY: ${{ secrets.JWT_CONTEXT_KEY }}
         JWT_DURATION_MINUTES: 240
+        JWT_AUTH_URL: ${{ secrets.JWT_AUTH_URL }}
         ADMIN_USER: ${{ secrets.ADMIN_USER }}
         ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
