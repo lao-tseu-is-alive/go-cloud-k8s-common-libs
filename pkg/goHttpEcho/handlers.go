@@ -38,3 +38,13 @@ func (s *Server) GetHealthHandler(healthyFunc FuncAreWeHealthy, msg string) echo
 		}
 	})
 }
+
+func (s *Server) GetAppInfoHandler() echo.HandlerFunc {
+	handlerName := "GetVersionHandler"
+	s.logger.Debug(initCallMsg, handlerName)
+	return echo.HandlerFunc(func(ctx echo.Context) error {
+		r := ctx.Request()
+		s.logger.TraceHttpRequest(handlerName, r)
+		return ctx.JSON(http.StatusOK, s.VersionReader.GetAppInfo())
+	})
+}

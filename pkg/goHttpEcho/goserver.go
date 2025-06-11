@@ -87,7 +87,7 @@ func NewGoHttpServer(serverConfig *Config) *Server {
 	}
 	var contentHandler = echo.WrapHandler(http.FileServer(http.FS(content)))
 
-	// The embedded files will all be in the '/goCloudK8sUserGroupFront/dist/' folder so need to rewrite the request (could also do this with fs.Sub)
+	// The embedded files will all be in the '/yourWebRootDir/dist/' folder so need to rewrite the request (could also do this with fs.Sub)
 	var contentRewrite = middleware.Rewrite(map[string]string{"/*": fmt.Sprintf("/%s$1", webRootDir)})
 	e.GET("/*", contentHandler, contentRewrite)
 

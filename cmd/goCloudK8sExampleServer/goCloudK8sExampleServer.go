@@ -164,7 +164,10 @@ func main() {
 		}
 	}
 
-	myVersionReader := goHttpEcho.NewSimpleVersionReader(APP, version.VERSION, version.REPOSITORY)
+	// Get the ENV JWT_AUTH_URL value
+	jwtAuthUrl := config.GetJwtAuthUrlFromEnvOrPanic()
+
+	myVersionReader := goHttpEcho.NewSimpleVersionReader(APP, version.VERSION, version.REPOSITORY, jwtAuthUrl)
 	// Create a new JWT checker
 	myJwt := goHttpEcho.NewJwtChecker(
 		config.GetJwtSecretFromEnvOrPanic(),
@@ -218,7 +221,8 @@ func main() {
 		dbConn: db,
 		server: server,
 	}
-	e.POST("/login", yourService.login)
+	e.GET("/goAppInfo", server.GetAppInfoHandler())
+	e.POST(jwtAuthUrl, yourService.login)
 	r := server.GetRestrictedGroup()
 	r.GET("/secret", yourService.restricted)
 	err = server.StartServer()

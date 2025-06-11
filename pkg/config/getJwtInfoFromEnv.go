@@ -58,6 +58,21 @@ func GetJwtContextKeyFromEnvOrPanic() string {
 	return fmt.Sprintf("%s", val)
 }
 
+// GetJwtAuthUrlFromEnvOrPanic returns the url to be used for JWT authentication based on the content of the env variable
+// JWT_AUTH_URL : should exist and contain a string with your url to be used or this function will panic
+func GetJwtAuthUrlFromEnvOrPanic() string {
+	val, exist := os.LookupEnv("JWT_AUTH_URL")
+	if !exist {
+		panic("💥💥 ERROR: ENV JWT_AUTH_URL should contain your JWT AUTHENTICATION URL.")
+	}
+	// Check if the value contains valid url
+	match, _ := regexp.MatchString("^(?:(?:https?|ftp):\\/\\/(?:[^@]+@)?[^:\\/?#]+(?::\\d+)?(?:\\/[^?#]*)?|\\/[^?#]*)$", val)
+	if !match {
+		panic("💥💥 ERROR: CONFIG ENV JWT_AUTH_URL should contain a valid url")
+	}
+	return fmt.Sprintf("%s", val)
+}
+
 // GetJwtDurationFromEnvOrPanic returns a number  string based on the values of environment variable :
 // JWT_DURATION_MINUTES : int value between 1 and 1440 minutes, 24H or 1 day is the maximum duration
 // the parameter defaultJwtDuration will be used if this env variable is not defined
