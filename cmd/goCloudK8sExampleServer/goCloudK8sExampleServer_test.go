@@ -49,6 +49,8 @@ func TestMainExec(t *testing.T) {
 		return r
 	}
 
+	// Get the ENV JWT_AUTH_URL value
+	jwtAuthUrl := config.GetJwtAuthUrlFromEnvOrPanic()
 	formLogin := make(url.Values)
 	mainAdminUser := config.GetAdminUserFromEnvOrPanic(defaultAdminUser)
 	mainAdminPassword := config.GetAdminPasswordFromEnvOrPanic()
@@ -98,7 +100,7 @@ func TestMainExec(t *testing.T) {
 			wantBody:       "token",
 			paramKeyValues: make(map[string]string, 0),
 			httpMethod:     http.MethodPost,
-			url:            "/login",
+			url:            jwtAuthUrl,
 			body:           formLogin.Encode(),
 		},
 	}
