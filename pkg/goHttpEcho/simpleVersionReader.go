@@ -3,7 +3,9 @@ package goHttpEcho
 type AppInfo struct {
 	App        string `json:"app"`
 	Version    string `json:"version"`
+	BuildStamp string `json:"buildStamp"`
 	Repository string `json:"repository"`
+	Revision   string `json:"revision"`
 	AuthUrl    string `json:"authUrl"`
 }
 
@@ -22,12 +24,14 @@ func (s SimpleVersionWriter) GetAppInfo() AppInfo {
 }
 
 // NewSimpleVersionReader is a constructor that initializes the VersionReader interface
-func NewSimpleVersionReader(app, ver, repo, authUrl string) *SimpleVersionWriter {
+func NewSimpleVersionReader(app, ver, repo, rev, buildStamp, authUrl string) *SimpleVersionWriter {
 
 	return &SimpleVersionWriter{
 		Info: AppInfo{
 			App:        app,
 			Version:    ver,
+			BuildStamp: buildStamp,
+			Revision:   rev,
 			Repository: repo,
 			AuthUrl:    authUrl,
 		},

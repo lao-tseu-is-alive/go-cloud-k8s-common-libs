@@ -44,7 +44,7 @@ func GetJwtIssuerFromEnvOrPanic() string {
 func GetJwtContextKeyFromEnvOrPanic() string {
 	val, exist := os.LookupEnv("JWT_CONTEXT_KEY")
 	if !exist {
-		panic("💥💥 ERROR: ENV JWT_CONTEXT_KEY should contain your JWT ISSUER ID secret.")
+		panic("💥💥 ERROR: ENV JWT_CONTEXT_KEY should contain your JWT CONTEXT KEY.")
 	}
 	if utf8.RuneCountInString(val) < minContextKeyLength {
 		panic(fmt.Sprintf("💥💥 ERROR: CONFIG ENV JWT_CONTEXT_KEY should contain at least %d characters (got %d).",

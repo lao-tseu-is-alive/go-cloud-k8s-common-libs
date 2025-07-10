@@ -40,7 +40,7 @@ func (s *Server) GetHealthHandler(healthyFunc FuncAreWeHealthy, msg string) echo
 }
 
 func (s *Server) GetAppInfoHandler() echo.HandlerFunc {
-	handlerName := "GetVersionHandler"
+	handlerName := "GetAppInfoHandler"
 	s.logger.Debug(initCallMsg, handlerName)
 	return echo.HandlerFunc(func(ctx echo.Context) error {
 		r := ctx.Request()
