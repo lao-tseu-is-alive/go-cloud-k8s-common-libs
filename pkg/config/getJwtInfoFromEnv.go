@@ -92,3 +92,23 @@ func GetJwtDurationFromEnvOrPanic(defaultJwtDuration int) int {
 	}
 	return JwtDuration
 }
+
+// GetJwtCookieNameFromEnv returns a the name of the http-only cookie to be used to use JWT from env variable
+// JWT_COOKIE_NAME : should exist and contain a string with your cookie name or this function will use the passed default
+func GetJwtCookieNameFromEnv(defaultName string) string {
+	val, exist := os.LookupEnv("JWT_COOKIE_NAME")
+	if !exist {
+		return defaultName
+	}
+	return fmt.Sprintf("%s", val)
+}
+
+// GetJwtStatusUrlFromEnv returns the url to be used to check JWT token from env variable
+// JWT_STATUS_URL : should exist and contain a relative url for status token check or this function will use the passed default
+func GetJwtStatusUrlFromEnv(defaultName string) string {
+	val, exist := os.LookupEnv("JWT_STATUS_URL")
+	if !exist {
+		return defaultName
+	}
+	return fmt.Sprintf("%s", val)
+}

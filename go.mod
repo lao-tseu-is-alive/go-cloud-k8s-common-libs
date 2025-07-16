@@ -4,6 +4,7 @@ go 1.24.5
 
 require (
 	github.com/cristalhq/jwt/v5 v5.4.0
+	github.com/georgysavva/scany/v2 v2.1.4
 	github.com/golang-migrate/migrate/v4 v4.18.3
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/labstack/echo/v4 v4.13.4

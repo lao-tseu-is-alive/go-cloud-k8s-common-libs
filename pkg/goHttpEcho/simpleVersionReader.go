@@ -7,6 +7,7 @@ type AppInfo struct {
 	Repository string `json:"repository"`
 	Revision   string `json:"revision"`
 	AuthUrl    string `json:"authUrl"`
+	StatusUrl  string `json:"statusUrl"`
 }
 
 type VersionReader interface {
@@ -24,7 +25,7 @@ func (s SimpleVersionWriter) GetAppInfo() AppInfo {
 }
 
 // NewSimpleVersionReader is a constructor that initializes the VersionReader interface
-func NewSimpleVersionReader(app, ver, repo, rev, buildStamp, authUrl string) *SimpleVersionWriter {
+func NewSimpleVersionReader(app, ver, repo, rev, buildStamp, authUrl, statusUrl string) *SimpleVersionWriter {
 
 	return &SimpleVersionWriter{
 		Info: AppInfo{
@@ -34,6 +35,7 @@ func NewSimpleVersionReader(app, ver, repo, rev, buildStamp, authUrl string) *Si
 			Revision:   rev,
 			Repository: repo,
 			AuthUrl:    authUrl,
+			StatusUrl:  statusUrl,
 		},
 	}
 }

@@ -28,6 +28,7 @@ const (
 	defaultDBPort              = 5432
 	defaultDBIp                = "127.0.0.1"
 	defaultDBSslMode           = "prefer"
+	defaultJwtStatusUrl        = "/status"
 	defaultReadTimeout         = 10 * time.Second // max time to read request from the client
 	defaultWebRootDir          = "goCloudK8sExampleFront/dist/"
 	defaultSqlDbMigrationsPath = "db/migrations"
@@ -166,6 +167,7 @@ func main() {
 
 	// Get the ENV JWT_AUTH_URL value
 	jwtAuthUrl := config.GetJwtAuthUrlFromEnvOrPanic()
+	jwtStatusUrl := config.GetJwtStatusUrlFromEnv(defaultJwtStatusUrl)
 
 	myVersionReader := goHttpEcho.NewSimpleVersionReader(
 		APP,
@@ -174,6 +176,7 @@ func main() {
 		version.REVISION,
 		version.BuildStamp,
 		jwtAuthUrl,
+		jwtStatusUrl,
 	)
 	// Create a new JWT checker
 	myJwt := goHttpEcho.NewJwtChecker(
@@ -231,7 +234,7 @@ func main() {
 	e.GET("/goAppInfo", server.GetAppInfoHandler())
 	e.POST(jwtAuthUrl, yourService.login)
 	r := server.GetRestrictedGroup()
-	r.GET("/secret", yourService.restricted)
+	r.GET(jwtStatusUrl, yourService.restricted)
 	err = server.StartServer()
 	if err != nil {
 		l.Fatal("💥💥 error doing server.StartServer error: %v'\n", err)
