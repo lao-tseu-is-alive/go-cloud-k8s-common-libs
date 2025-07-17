@@ -16,13 +16,11 @@ import (
 const (
 	APP                 = "goCloudK8sCommonLibsDemoServer"
 	defaultPort         = 8080
+	defaultJwtStatusUrl = "/status"
 	defaultWebRootDir   = "web/"
 	defaultAdminUser    = "goadmin"
 	defaultAdminEmail   = "goadmin@yourdomain.org"
 	defaultAdminId      = 960901
-	charsetUTF8         = "charset=UTF-8"
-	MIMEHtml            = "text/html"
-	MIMEHtmlCharsetUTF8 = MIMEHtml + "; " + charsetUTF8
 )
 
 // content holds our static web server content.
@@ -92,6 +90,8 @@ func main() {
 
 	// Get the ENV JWT_AUTH_URL value
 	jwtAuthUrl := config.GetJwtAuthUrlFromEnvOrPanic()
+	jwtStatusUrl := config.GetJwtStatusUrlFromEnv(defaultJwtStatusUrl)
+
 	myVersionReader := goHttpEcho.NewSimpleVersionReader(
 		APP,
 		version.VERSION,
@@ -99,6 +99,7 @@ func main() {
 		version.REVISION,
 		version.BuildStamp,
 		jwtAuthUrl,
+		jwtStatusUrl,
 	)
 	// Create a new JWT checker
 	myJwt := goHttpEcho.NewJwtChecker(
@@ -146,7 +147,7 @@ func main() {
 	}
 	e.POST(jwtAuthUrl, yourService.login)
 	r := server.GetRestrictedGroup()
-	r.GET("/secret", yourService.restricted)
+	r.GET(jwtStatusUrl, yourService.restricted)
 	err = server.StartServer()
 	if err != nil {
 		l.Fatal("💥💥 error doing server.StartServer error: %v'\n", err)
