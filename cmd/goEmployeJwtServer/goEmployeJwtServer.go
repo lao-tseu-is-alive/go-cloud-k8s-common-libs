@@ -359,7 +359,7 @@ func main() {
 	//curl -v -b "yourOwnJwtCookieName=${TOKEN}"  http://localhost:8787/goapi/v1/status
 	e.GET(jwtAuthUrl, myF5Service.getJwtCookieFromF5)
 	r := server.GetRestrictedGroup()
-	r.GET("/status", myF5Service.GetStatus)
+	r.GET(jwtStatusUrl, myF5Service.GetStatus)
 
 	err = server.StartServer()
 	if err != nil {

@@ -65,25 +65,17 @@ func NewGoHttpServer(serverConfig *Config) *Server {
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
 		l.Debug("in customHTTPErrorHandler got error: %v", err)
 		re := c.Request()
-		l.TraceHttpRequest("customHTTPErrorHandler", re)
 		code := http.StatusInternalServerError
 		var he *echo.HTTPError
 		if errors.As(err, &he) {
 			code = he.Code
 		}
-		if code == 404 {
-			errorPage := fmt.Sprintf("%s/%d.html", webRootDir, code)
-			res, err := content.ReadFile(errorPage)
-			if err != nil {
-				l.Error("in  content.ReadFile(%s) got error: %v", errorPage, err)
-			}
-			if err := c.HTMLBlob(code, res); err != nil {
-				l.Error("in  c.HTMLBlob(%d, %s) got error: %v", code, res, err)
-				c.Logger().Error(err)
-			}
-		} else {
-			c.JSON(code, err)
+		l.TraceHttpRequest(fmt.Sprintf("⚠️ customHTTPErrorHandler http status:%d", code), re)
+		// Prepare the response
+		response := map[string]string{
+			"status": err.Error(),
 		}
+		c.JSON(code, response)
 	}
 	var contentHandler = echo.WrapHandler(http.FileServer(http.FS(content)))
 
