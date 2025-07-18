@@ -59,7 +59,7 @@ func NewGoHttpServer(serverConfig *Config) *Server {
 	myServerMux := http.NewServeMux()
 	e := echo.New()
 	e.HideBanner = true
-	e.Use(middleware.CORS())
+	//e.Use(middleware.CORS())
 	e.HideBanner = true
 	/* will try a better way to handle 404 */
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
