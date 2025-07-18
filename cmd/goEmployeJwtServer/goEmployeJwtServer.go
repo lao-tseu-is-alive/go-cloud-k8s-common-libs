@@ -5,6 +5,13 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"log"
+	"net/http"
+	"runtime"
+	"slices"
+	"strings"
+	"time"
+
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
@@ -15,12 +22,6 @@ import (
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/metadata"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/tools"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/version"
-	"log"
-	"net/http"
-	"runtime"
-	"slices"
-	"strings"
-	"time"
 )
 
 const (
@@ -35,12 +36,6 @@ const (
 	defaultAdminUser             = "goadmin"
 	defaultAdminEmail            = "goadmin@yourdomain.org"
 	defaultAdminId               = 960901
-	/*
-		charsetUTF8                  = "charset=UTF-8"
-		MIMEHtml                     = "text/html"
-		MIMEHtmlCharsetUTF8          = MIMEHtml + "; " + charsetUTF8
-
-	*/
 )
 
 // content holds our static web server content.
@@ -71,7 +66,7 @@ func validateHostAllowed(r *http.Request, allowedHostnames []string, l golog.MyL
 	if slices.Contains(allowedHostnames, "*") {
 		return nil
 	}
-	if strings.Index(requesterHostname, ":") != -1 {
+	if strings.Contains(requesterHostname, ":") {
 		requesterHostname = strings.Split(requesterHostname, ":")[0]
 	}
 	if slices.Contains(allowedHostnames, "localhost") {
@@ -95,21 +90,21 @@ func (s Service) getJwtCookieFromF5(ctx echo.Context) error {
 	if err != nil {
 		errMsg := fmt.Sprintf("error validating host: %v", err)
 		s.Logger.Error(errMsg)
-		return ctx.JSON(http.StatusUnauthorized, errMsg)
+		return ctx.JSON(http.StatusUnauthorized, map[string]string{"status": "error", "message": errMsg})
 	}
 	// get the user from the F5 Header UserId
 	login := strings.TrimSpace(ctx.Request().Header.Get("UserId"))
 	if login == "" {
-		myErrMsg := "getJwtCookieFromF5 failed to get login because UserId F5 header is missing"
-		s.Logger.Warn(myErrMsg)
-		return ctx.JSON(http.StatusUnauthorized, map[string]string{"status": myErrMsg})
+		errMsg := "getJwtCookieFromF5 failed to get login because UserId F5 header is missing"
+		s.Logger.Warn(errMsg)
+		return ctx.JSON(http.StatusUnauthorized, map[string]string{"status": "error", "message": errMsg})
 	} else {
 		s.Logger.Debug("About to check username: %s ", login)
 		err := f5.ValidateLogin(login)
 		if err != nil {
 			errMsg := fmt.Sprintf("error validating user login: %v", err)
 			s.Logger.Error(errMsg)
-			return ctx.JSON(http.StatusBadRequest, errMsg)
+			return ctx.JSON(http.StatusBadRequest, map[string]string{"status": "error", "message": errMsg})
 		}
 		h := sha256.New()
 		h.Write([]byte(version.APP))
@@ -118,15 +113,15 @@ func (s Service) getJwtCookieFromF5(ctx echo.Context) error {
 		if s.auth.AuthenticateUser(login, appPasswordHash) {
 			userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(login)
 			if err != nil {
-				myErrMsg := fmt.Sprintf("getJwtCookieFromF5 failed to get user info from login: %v", err)
-				s.Logger.Error(myErrMsg)
-				return ctx.JSON(http.StatusInternalServerError, map[string]string{"status": myErrMsg})
+				errMsg := fmt.Sprintf("getJwtCookieFromF5 failed to get user info from login: %v", err)
+				s.Logger.Error(errMsg)
+				return ctx.JSON(http.StatusInternalServerError, map[string]string{"status": "error", "message": errMsg})
 			}
 			token, err := s.server.JwtCheck.GetTokenFromUserInfo(userInfo)
 			if err != nil {
-				myErrMsg := fmt.Sprintf("getJwtCookieFromF5 failed to get jwt token from user info: %v", err)
-				s.Logger.Error(myErrMsg)
-				return ctx.JSON(http.StatusInternalServerError, map[string]string{"status": myErrMsg})
+				errMsg := fmt.Sprintf("getJwtCookieFromF5 failed to get jwt token from user info: %v", err)
+				s.Logger.Error(errMsg)
+				return ctx.JSON(http.StatusInternalServerError, map[string]string{"status": "error", "message": errMsg})
 			}
 			// Prepare the http only cookie for jwt token
 			cookie := new(http.Cookie)
@@ -140,11 +135,11 @@ func (s Service) getJwtCookieFromF5(ctx echo.Context) error {
 			ctx.SetCookie(cookie)
 			myMsg := fmt.Sprintf("getJwtCookieFromF5(%s) successful, token set in HTTP-Only cookie.", login)
 			s.Logger.Info(myMsg)
-			return ctx.JSON(http.StatusOK, myMsg)
+			return ctx.JSON(http.StatusOK, map[string]string{"status": "success", "message": myMsg})
 		} else {
-			myErrMsg := fmt.Sprintf("getJwtCookieFromF5 failed to get jwt token user: %s, does not exist in DB", login)
-			s.Logger.Warn(myErrMsg)
-			return ctx.JSON(http.StatusUnauthorized, map[string]string{"status": myErrMsg})
+			errMsg := fmt.Sprintf("getJwtCookieFromF5 failed to get jwt token user: %s, does not exist in DB", login)
+			s.Logger.Warn(errMsg)
+			return ctx.JSON(http.StatusUnauthorized, map[string]string{"status": "error", "message": errMsg})
 		}
 	}
 }
@@ -158,7 +153,7 @@ func (s Service) login(ctx echo.Context) error {
 	if err != nil {
 		errMsg := fmt.Sprintf("error validating host: %v", err)
 		s.Logger.Error(errMsg)
-		return ctx.JSON(http.StatusUnauthorized, errMsg)
+		return ctx.JSON(http.StatusUnauthorized, map[string]string{"status": "error", "message": errMsg})
 	}
 	uLogin := new(UserLogin)
 	login := ctx.FormValue("login")
@@ -167,7 +162,7 @@ func (s Service) login(ctx echo.Context) error {
 	// maybe it was not a form but a fetch data post
 	if len(strings.Trim(login, " ")) < 1 {
 		if err := ctx.Bind(uLogin); err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid user login or json format in request body")
+			return ctx.JSON(http.StatusBadRequest, map[string]string{"status": "error", "message": "invalid user login or json format in request body"})
 		}
 	} else {
 		uLogin.Username = login
@@ -177,13 +172,13 @@ func (s Service) login(ctx echo.Context) error {
 	if err != nil {
 		errMsg := fmt.Sprintf("error validating user login: %v", err)
 		s.Logger.Error(errMsg)
-		return ctx.JSON(http.StatusInternalServerError, errMsg)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"status": "error", "message": errMsg})
 	}
 	err = f5.ValidatePasswordHash(uLogin.PasswordHash)
 	if err != nil {
 		errMsg := fmt.Sprintf("error validating password hash: %v", err)
 		s.Logger.Error(errMsg)
-		return ctx.JSON(http.StatusInternalServerError, errMsg)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"status": "error", "message": errMsg})
 	}
 	s.Logger.Debug("About to check username: %s , password: %s", uLogin.Username, uLogin.PasswordHash)
 	if s.server.Authenticator.AuthenticateUser(uLogin.Username, uLogin.PasswordHash) {
@@ -191,22 +186,23 @@ func (s Service) login(ctx echo.Context) error {
 		if err != nil {
 			errGetUInfFromLogin := fmt.Sprintf("Error getting user info from login: %v", err)
 			s.Logger.Error(errGetUInfFromLogin)
-			return ctx.JSON(http.StatusInternalServerError, errGetUInfFromLogin)
+			return ctx.JSON(http.StatusInternalServerError, map[string]string{"status": "error", "message": errGetUInfFromLogin})
 		}
 		token, err := s.server.JwtCheck.GetTokenFromUserInfo(userInfo)
 		if err != nil {
 			errGetUInfFromLogin := fmt.Sprintf("Error getting jwt token from user info: %v", err)
 			s.Logger.Error(errGetUInfFromLogin)
-			return ctx.JSON(http.StatusInternalServerError, errGetUInfFromLogin)
+			return ctx.JSON(http.StatusInternalServerError, map[string]string{"status": "error", "message": errGetUInfFromLogin})
 		}
 		// Prepare the response
-		response := map[string]string{
-			"token": token.String(),
+		response := map[string]interface{}{
+			"status": "success",
+			"token":  token.String(),
 		}
 		s.Logger.Info("LoginUser(%s) successful login", login)
 		return ctx.JSON(http.StatusOK, response)
 	} else {
-		return ctx.JSON(http.StatusUnauthorized, "username not found or password invalid")
+		return ctx.JSON(http.StatusUnauthorized, map[string]string{"status": "error", "message": "username not found or password invalid"})
 	}
 }
 
@@ -216,7 +212,7 @@ func (s Service) GetStatus(ctx echo.Context) error {
 	if err != nil {
 		errMsg := fmt.Sprintf("error validating host: %v", err)
 		s.Logger.Error(errMsg)
-		return ctx.JSON(http.StatusUnauthorized, errMsg)
+		return ctx.JSON(http.StatusUnauthorized, map[string]string{"status": "error", "message": errMsg})
 	}
 	// get the current user from JWT TOKEN
 	claims := s.server.JwtCheck.GetJwtCustomClaimsFromContext(ctx)
@@ -225,9 +221,9 @@ func (s Service) GetStatus(ctx echo.Context) error {
 	s.Logger.Info("in GetStatus : currentUserId: %d", currentUserId)
 	// you can check if the user is not active anymore and RETURN 401 Unauthorized
 	if !s.Store.Exist(currentUserLogin) {
-		return echo.NewHTTPError(http.StatusUnauthorized, "current calling user does not exist")
+		return ctx.JSON(http.StatusUnauthorized, map[string]string{"status": "error", "message": "current calling user does not exist"})
 	}
-	return ctx.JSON(http.StatusOK, claims)
+	return ctx.JSON(http.StatusOK, map[string]interface{}{"status": "success", "claims": claims})
 }
 
 func main() {
