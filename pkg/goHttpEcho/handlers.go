@@ -44,7 +44,6 @@ func (s *Server) GetReadinessHandler(readyFunc FuncAreWeReady, msg string) echo.
 	s.logger.Debug(initCallMsg, handlerName)
 	return func(ctx echo.Context) error {
 		ready := readyFunc(msg)
-		s.logger.TraceHttpRequest(handlerName, ctx.Request())
 		if ready {
 			msgOK := fmt.Sprintf(ReadinessOKMsg, msg)
 			return s.SendJSONResponse(ctx, http.StatusOK, "ready", msgOK, ready, nil)
@@ -59,7 +58,6 @@ func (s *Server) GetHealthHandler(healthyFunc FuncAreWeHealthy, msg string) echo
 	s.logger.Debug(initCallMsg, handlerName)
 	return func(ctx echo.Context) error {
 		healthy := healthyFunc(msg)
-		s.logger.TraceHttpRequest(handlerName, ctx.Request())
 		if healthy {
 			msgOK := fmt.Sprintf(HealthOKMsg, msg)
 			return s.SendJSONResponse(ctx, http.StatusOK, "healthy", msgOK, healthy, nil)

@@ -8,6 +8,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/database"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/goHttpEcho"
@@ -216,6 +217,7 @@ func main() {
 	)
 
 	e := server.GetEcho()
+	e.Use(middleware.Logger()) // Automatically logs requests
 	e.GET("/readiness", server.GetReadinessHandler(func(info string) bool {
 		ver, err := db.GetVersion()
 		if err != nil {
