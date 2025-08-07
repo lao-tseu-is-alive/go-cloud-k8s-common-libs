@@ -322,7 +322,7 @@ func main() {
 	}
 
 	e := server.GetEcho()
-	e.Use(goHttpEcho.CookieToHeaderMiddleware(myF5Service.jwtCookieName))
+	e.Use(goHttpEcho.CookieToHeaderMiddleware(myF5Service.jwtCookieName, l))
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"https://golux.lausanne.ch", "http://localhost:3000"},
 		AllowMethods: []string{http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete},

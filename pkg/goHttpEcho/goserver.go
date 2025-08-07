@@ -179,7 +179,7 @@ func (s *Server) StartServer() error {
 		s.logger.Info("starting http server listening at %s://%s/", defaultProtocol, s.listenAddress)
 		err := s.e.StartServer(&s.httpServer)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			s.logger.Fatal("💥💥 error could not listen on tcp port %q. error: %s", s.listenAddress, err)
+			s.logger.Fatal("💥💥 error starting server on %q. error: %s", s.listenAddress, err)
 		}
 	}()
 	s.logger.Debug("Server listening on : %s PID:[%d]", s.httpServer.Addr, os.Getpid())
