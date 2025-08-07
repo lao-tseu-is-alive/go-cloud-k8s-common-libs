@@ -117,6 +117,33 @@ func checkHealthy(info string) bool {
 	return true
 }
 
+func (s Service) helloHandler(c echo.Context) error {
+	handlerName := "helloHandler"
+	s.Logger.Debug("initial call to handler %s", handlerName)
+	// Create an instance of PageData with dynamic content
+	app := s.server.VersionReader.GetAppInfo()
+	appTitle := fmt.Sprintf("%s, v%s", app.App, app.Version)
+	pageData := goHttpEcho.PageData{
+		Title:       appTitle,
+		Description: "A generic page with dynamic content blocks.",
+		Theme:       "blue",
+		Content: []goHttpEcho.ContentBlock{
+			{Type: "heading", Value: fmt.Sprintf("Welcome to %s", appTitle)},
+			{Type: "paragraph", Value: "This is the first paragraph. You can add as many as you need."},
+			{Type: "paragraph", Value: "Here's another paragraph, demonstrating how the template can handle a list of content blocks."},
+			{Type: "heading", Value: "Another Section"},
+			{Type: "paragraph", Value: "This is a new section with a different heading."},
+		},
+	}
+
+	html, err := goHttpEcho.GetHtmlPage(pageData)
+	if err != nil {
+		return c.HTML(http.StatusInternalServerError, goHttpEcho.GetHtmlError("💥 💥 failed to generate page"))
+	}
+	return c.HTML(http.StatusOK, html)
+
+}
+
 func main() {
 	l, err := golog.NewLogger("zap", golog.DebugLevel, APP)
 	if err != nil {
@@ -237,6 +264,9 @@ func main() {
 	e.POST(jwtAuthUrl, yourService.login)
 	r := server.GetRestrictedGroup()
 	r.GET(jwtStatusUrl, yourService.restricted)
+
+	e.GET("/hello", yourService.helloHandler)
+
 	err = server.StartServer()
 	if err != nil {
 		l.Fatal("💥💥 error doing server.StartServer error: %v'\n", err)

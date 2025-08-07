@@ -21,7 +21,7 @@ type StandardResponse struct {
 	Errors []string    `json:"errors,omitempty"` // Optional: for detailed error messages
 }
 
-func GetStandardResponse(statusMsg, msg string, state bool, data interface{}, errors []string) StandardResponse {
+func GetStandardResponse(statusMsg, msg string, state bool, data interface{}, errors ...string) StandardResponse {
 	return StandardResponse{
 		Status: statusMsg,
 		Msg:    msg,
@@ -32,7 +32,7 @@ func GetStandardResponse(statusMsg, msg string, state bool, data interface{}, er
 }
 
 func (s *Server) SendJSONResponse(ctx echo.Context, statusCode int, status, msg string, isOk bool, data interface{}, errors ...string) error {
-	response := GetStandardResponse(status, msg, isOk, data, errors)
+	response := GetStandardResponse(status, msg, isOk, data, errors...)
 	if statusCode >= 400 {
 		return echo.NewHTTPError(statusCode, response)
 	}

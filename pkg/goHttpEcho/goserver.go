@@ -59,29 +59,31 @@ func NewGoHttpServer(serverConfig *Config) *Server {
 	myServerMux := http.NewServeMux()
 	e := echo.New()
 	e.HideBanner = true
-	//e.Use(middleware.CORS())
-	e.HideBanner = true
-	/* will try a better way to handle 404 */
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
 		l.Debug("in customHTTPErrorHandler got error: %v", err)
-		re := c.Request()
 		code := http.StatusInternalServerError
 		var he *echo.HTTPError
 		if errors.As(err, &he) {
 			code = he.Code
 		}
-		l.TraceHttpRequest(fmt.Sprintf("⚠️ customHTTPErrorHandler http status:%d", code), re)
-		// Prepare the response
-		response := map[string]string{
-			"status": err.Error(),
-		}
+		l.TraceHttpRequest(fmt.Sprintf("⚠️ customHTTPErrorHandler http status:%d", code), c.Request())
+		response := GetStandardResponse("error", err.Error(), false, nil, err.Error())
 		c.JSON(code, response)
 	}
 	var contentHandler = echo.WrapHandler(http.FileServer(http.FS(content)))
 
 	// The embedded files will all be in the '/yourWebRootDir/dist/' folder so need to rewrite the request (could also do this with fs.Sub)
 	var contentRewrite = middleware.Rewrite(map[string]string{"/*": fmt.Sprintf("/%s$1", webRootDir)})
-	e.GET("/*", contentHandler, contentRewrite)
+	e.GET("/*", contentHandler, contentRewrite, func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			err := next(c)
+			if err != nil && errors.Is(err, os.ErrNotExist) {
+				l.Warn("Static file not found: %v, path: %s", err, c.Request().URL.Path)
+				return c.JSON(http.StatusNotFound, GetStandardResponse("error", "File not found", false, nil, "Requested resource not found"))
+			}
+			return err
+		}
+	})
 
 	// Restricted group definition : we decide to only all authenticated calls to the URL /api
 	r := e.Group(restrictedUrl)
@@ -211,13 +213,4 @@ func waitForShutdownToExit(srv *http.Server, secondsToWait time.Duration) {
 	<-ctx.Done()
 	srv.ErrorLog.Println("INFO: 'Server gracefully stopped, will exit'")
 	os.Exit(0)
-}
-
-func getHtmlHeader(title string, description string) string {
-	return fmt.Sprintf("%s<meta name=\"description\" content=\"%s\"><title>%s</title></head>", htmlHeaderStart, description, title)
-}
-
-func getHtmlPage(title string, description string) string {
-	return getHtmlHeader(title, description) +
-		fmt.Sprintf("\n<body><div class=\"container\"><h4>%s</h4></div></body></html>", title)
 }
