@@ -38,7 +38,7 @@ This repository provides a set of reusable Go libraries designed for building mi
 
 ### Prerequisites
 Before you begin, ensure you have the following installed:
-- Go (version 1.24.4 or later)
+- Go (version 1.24 or later)
 - PostgreSQL (for database operations and testing)
 - Git (to clone the repository)
 

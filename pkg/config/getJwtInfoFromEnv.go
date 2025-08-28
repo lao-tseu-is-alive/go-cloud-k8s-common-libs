@@ -8,8 +8,10 @@ import (
 	"unicode/utf8"
 )
 
-const minSecretLength = 16
-const minContextKeyLength = 6
+const (
+	minSecretLength     = 16
+	minContextKeyLength = 6
+)
 
 // GetJwtSecretFromEnvOrPanic returns a secret to be used with JWT based on the content of the env variable
 // JWT_SECRET : should exist and contain a string with your secret or this function will panic

@@ -5,16 +5,17 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 )
 
 type FuncAreWeReady func(msg string) bool
