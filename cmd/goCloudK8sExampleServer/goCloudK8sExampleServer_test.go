@@ -3,16 +3,20 @@ package main
 import (
 	"crypto/sha256"
 	"fmt"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/gohttpclient"
-	"github.com/stretchr/testify/assert"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/gohttpclient"
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -33,6 +37,10 @@ type testStruct struct {
 
 // TestMainExec is instantiating the "real" main code using the env variable (in your .env files if you use the Makefile rule)
 func TestMainExec(t *testing.T) {
+	l, err := golog.NewLogger("simple", os.Stdout, golog.DebugLevel, "TestMainExec")
+	if err != nil {
+		log.Fatalf("💥💥 error log.NewLogger error: %v'\n", err)
+	}
 	listenPort := config.GetPortFromEnvOrPanic(defaultPort)
 	listenAddr := fmt.Sprintf("http://localhost:%d", listenPort)
 	fmt.Printf("INFO: 'Will start HTTP server listening on port %s'\n", listenAddr)
@@ -112,7 +120,7 @@ func TestMainExec(t *testing.T) {
 		defer wg.Done()
 		main()
 	}()
-	gohttpclient.WaitForHttpServer(listenAddr, 1*time.Second, 10)
+	gohttpclient.WaitForHttpServer(listenAddr, 1*time.Second, 10, l)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

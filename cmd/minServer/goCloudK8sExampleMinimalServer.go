@@ -3,14 +3,16 @@ package main
 import (
 	"embed"
 	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"strings"
+
 	"github.com/labstack/echo/v4"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/goHttpEcho"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/version"
-	"log"
-	"net/http"
-	"strings"
 )
 
 const (
@@ -39,7 +41,7 @@ type Service struct {
 // you should use the jwt token returned from LoginUser  in github.com/lao-tseu-is-alive/go-cloud-k8s-user-group'
 // and share the same secret with the above component
 func (s Service) login(ctx echo.Context) error {
-	s.Logger.TraceHttpRequest("login", ctx.Request())
+	goHttpEcho.TraceHttpRequest("login", ctx.Request(), s.Logger)
 	login := ctx.FormValue("login")
 	passwordHash := ctx.FormValue("hashed")
 	s.Logger.Debug("login: %s, hash: %s ", login, passwordHash)
@@ -73,7 +75,7 @@ func (s Service) login(ctx echo.Context) error {
 }
 
 func (s Service) restricted(ctx echo.Context) error {
-	s.Logger.TraceHttpRequest("restricted", ctx.Request())
+	goHttpEcho.TraceHttpRequest("restricted", ctx.Request(), s.Logger)
 	// get the current user from JWT TOKEN
 	claims := s.server.JwtCheck.GetJwtCustomClaimsFromContext(ctx)
 	currentUserId := claims.User.UserId
@@ -82,7 +84,7 @@ func (s Service) restricted(ctx echo.Context) error {
 }
 
 func main() {
-	l, err := golog.NewLogger("zap", golog.DebugLevel, APP)
+	l, err := golog.NewLogger("simple", os.Stdout, golog.DebugLevel, APP)
 	if err != nil {
 		log.Fatalf("💥💥 error log.NewLogger error: %v'\n", err)
 	}

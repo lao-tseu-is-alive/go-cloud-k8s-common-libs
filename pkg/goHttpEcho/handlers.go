@@ -2,8 +2,9 @@ package goHttpEcho
 
 import (
 	"fmt"
-	"github.com/labstack/echo/v4"
 	"net/http"
+
+	"github.com/labstack/echo/v4"
 )
 
 const (
@@ -12,6 +13,10 @@ const (
 	HealthOKMsg     = "(%s) is healthy"
 	HealthErrMsg    = "(%s) is not healthy"
 )
+
+type FuncAreWeReady func(msg string) bool
+
+type FuncAreWeHealthy func(msg string) bool
 
 type StandardResponse struct {
 	Status string      `json:"status"`
@@ -72,7 +77,7 @@ func (s *Server) GetAppInfoHandler() echo.HandlerFunc {
 	handlerName := "GetAppInfoHandler"
 	s.logger.Debug(initCallMsg, handlerName)
 	return func(ctx echo.Context) error {
-		s.logger.TraceHttpRequest(handlerName, ctx.Request())
+		TraceHttpRequest(handlerName, ctx.Request(), s.logger)
 		return ctx.JSON(http.StatusOK, s.VersionReader.GetAppInfo())
 	}
 }

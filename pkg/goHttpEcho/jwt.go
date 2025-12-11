@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/cristalhq/jwt/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 	"github.com/rs/xid"
-	"net/http"
-	"strings"
-	"time"
 )
 
 type JwtChecker interface {
@@ -110,7 +111,7 @@ func (ji *JwtInfo) JwtMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 			authHeader = r.Header.Get("Sec-Websocket-Protocol")
 			if authHeader == "" {
 				const msg = "JwtMiddleware: ⚠️ Authorization header missing"
-				ji.logger.TraceHttpRequest(msg, r)
+				TraceHttpRequest(msg, r, ji.logger)
 				ji.logger.Error(msg)
 				return echo.NewHTTPError(http.StatusUnauthorized, msg).SetInternal(errors.New(msg))
 			}
@@ -124,7 +125,7 @@ func (ji *JwtInfo) JwtMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		jwtClaims, err := ji.ParseToken(tokenString)
 		if err != nil {
 			msg := fmt.Sprintf("JwtMiddleware: ⚠️ Invalid token error: %s\ntoken: '%s'", err, tokenString)
-			ji.logger.TraceHttpRequest(msg, r)
+			TraceHttpRequest(msg, r, ji.logger)
 			ji.logger.Error(msg)
 			return echo.NewHTTPError(http.StatusUnauthorized, msg).SetInternal(errors.New(msg))
 		}

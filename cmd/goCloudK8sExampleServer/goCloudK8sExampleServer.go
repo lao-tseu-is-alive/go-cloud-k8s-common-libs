@@ -4,6 +4,12 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"log"
+	"net/http"
+	"runtime"
+	"strings"
+	"time"
+
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -16,16 +22,12 @@ import (
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/metadata"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/tools"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/version"
-	"log"
-	"net/http"
-	"runtime"
-	"strings"
-	"time"
 )
 
 const (
 	APP                        = "goCloudK8sCommonLibsDemoServer"
 	defaultPort                = 8080
+	defaultLogName             = "stderr"
 	defaultDBPort              = 5432
 	defaultDBIp                = "127.0.0.1"
 	defaultDBSslMode           = "prefer"
@@ -63,7 +65,7 @@ type Service struct {
 // you should use the jwt token returned from LoginUser  in github.com/lao-tseu-is-alive/go-cloud-k8s-user-group'
 // and share the same secret with the above component
 func (s Service) login(ctx echo.Context) error {
-	s.Logger.TraceHttpRequest("login", ctx.Request())
+	goHttpEcho.TraceHttpRequest("login", ctx.Request(), s.Logger)
 	login := ctx.FormValue("login")
 	passwordHash := ctx.FormValue("hashed")
 	s.Logger.Debug("login: %s, hash: %s ", login, passwordHash)
@@ -75,29 +77,33 @@ func (s Service) login(ctx echo.Context) error {
 	if s.server.Authenticator.AuthenticateUser(login, passwordHash) {
 		userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(login)
 		if err != nil {
-			errGetUInfFromLogin := fmt.Sprintf("Error getting user info from login: %v", err)
-			s.Logger.Error(errGetUInfFromLogin)
-			return ctx.JSON(http.StatusInternalServerError, errGetUInfFromLogin)
+			myErrMsg := fmt.Sprintf("Error getting user info from login: %v", err)
+			s.Logger.Error(myErrMsg)
+			return ctx.JSON(http.StatusUnauthorized, map[string]string{"jwtStatus": myErrMsg, "token": ""})
 		}
 		token, err := s.server.JwtCheck.GetTokenFromUserInfo(userInfo)
 		if err != nil {
-			errGetUInfFromLogin := fmt.Sprintf("Error getting jwt token from user info: %v", err)
-			s.Logger.Error(errGetUInfFromLogin)
-			return ctx.JSON(http.StatusInternalServerError, errGetUInfFromLogin)
+			myErrMsg := fmt.Sprintf("Error getting jwt token from user info: %v", err)
+			s.Logger.Error(myErrMsg)
+			return ctx.JSON(http.StatusUnauthorized, map[string]string{"jwtStatus": myErrMsg, "token": ""})
 		}
 		// Prepare the response
 		response := map[string]string{
-			"token": token.String(),
+			"jwtStatus": "success",
+			"token":     token.String(),
 		}
 		s.Logger.Info("LoginUser(%s) successful login", login)
 		return ctx.JSON(http.StatusOK, response)
 	} else {
-		return ctx.JSON(http.StatusUnauthorized, "username not found or password invalid")
+		myErrMsg := "username not found or password invalid"
+		s.Logger.Warn(myErrMsg)
+		return ctx.JSON(http.StatusUnauthorized, map[string]string{"jwtStatus": myErrMsg, "token": ""})
+
 	}
 }
 
 func (s Service) restricted(ctx echo.Context) error {
-	s.Logger.TraceHttpRequest("restricted", ctx.Request())
+	goHttpEcho.TraceHttpRequest("restricted", ctx.Request(), s.Logger)
 	// get the current user from JWT TOKEN
 	claims := s.server.JwtCheck.GetJwtCustomClaimsFromContext(ctx)
 	currentUserId := claims.User.UserId
@@ -145,7 +151,13 @@ func (s Service) helloHandler(c echo.Context) error {
 }
 
 func main() {
-	l, err := golog.NewLogger("zap", golog.DebugLevel, APP)
+	l, err := golog.NewLogger(
+		"simple", // can be "zap"
+		config.GetLogWriterFromEnvOrPanic(defaultLogName),
+		config.GetLogLevelFromEnvOrPanic(golog.InfoLevel),
+		APP,
+	)
+
 	if err != nil {
 		log.Fatalf("💥💥 error log.NewLogger error: %v'\n", err)
 	}

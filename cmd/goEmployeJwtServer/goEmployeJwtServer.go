@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"runtime"
 	"slices"
 	"strings"
@@ -85,7 +86,7 @@ func validateHostAllowed(r *http.Request, allowedHostnames []string, l golog.MyL
 }
 
 func (s Service) getJwtCookieFromF5(ctx echo.Context) error {
-	s.Logger.TraceHttpRequest("getJwtCookieFromF5", ctx.Request())
+	goHttpEcho.TraceHttpRequest("getJwtCookieFromF5", ctx.Request(), s.Logger)
 	err := validateHostAllowed(ctx.Request(), s.AllowedHostnames, s.Logger)
 	if err != nil {
 		errMsg := fmt.Sprintf("error validating host: %v", err)
@@ -148,7 +149,7 @@ func (s Service) getJwtCookieFromF5(ctx echo.Context) error {
 // you should use the jwt token returned from LoginUser  in github.com/lao-tseu-is-alive/go-cloud-k8s-user-group'
 // and share the same secret with the above component
 func (s Service) login(ctx echo.Context) error {
-	s.Logger.TraceHttpRequest("login", ctx.Request())
+	goHttpEcho.TraceHttpRequest("login", ctx.Request(), s.Logger)
 	err := validateHostAllowed(ctx.Request(), s.AllowedHostnames, s.Logger)
 	if err != nil {
 		errMsg := fmt.Sprintf("error validating host: %v", err)
@@ -207,7 +208,7 @@ func (s Service) login(ctx echo.Context) error {
 }
 
 func (s Service) GetStatus(ctx echo.Context) error {
-	s.Logger.TraceHttpRequest("GetStatus", ctx.Request())
+	goHttpEcho.TraceHttpRequest("GetStatus", ctx.Request(), s.Logger)
 	err := validateHostAllowed(ctx.Request(), s.AllowedHostnames, s.Logger)
 	if err != nil {
 		errMsg := fmt.Sprintf("error validating host: %v", err)
@@ -227,7 +228,7 @@ func (s Service) GetStatus(ctx echo.Context) error {
 }
 
 func main() {
-	l, err := golog.NewLogger("zap", golog.DebugLevel, version.APP)
+	l, err := golog.NewLogger("simple", os.Stdout, golog.DebugLevel, version.APP)
 	if err != nil {
 		log.Fatalf("💥💥 error log.NewLogger error: %v'\n", err)
 	}

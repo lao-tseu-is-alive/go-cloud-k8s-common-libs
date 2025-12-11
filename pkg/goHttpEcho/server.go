@@ -18,10 +18,6 @@ import (
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 )
 
-type FuncAreWeReady func(msg string) bool
-
-type FuncAreWeHealthy func(msg string) bool
-
 // Server is a struct type to store information related to all handlers of web server
 type Server struct {
 	listenAddress string
@@ -67,7 +63,7 @@ func NewGoHttpServer(serverConfig *Config) *Server {
 		if errors.As(err, &he) {
 			code = he.Code
 		}
-		l.TraceHttpRequest(fmt.Sprintf("⚠️ customHTTPErrorHandler http status:%d", code), c.Request())
+		TraceHttpRequest(fmt.Sprintf("⚠️ customHTTPErrorHandler http status:%d", code), c.Request(), l)
 		response := GetStandardResponse("error", err.Error(), false, nil, err.Error())
 		c.JSON(code, response)
 	}
@@ -175,6 +171,11 @@ func (s *Server) GetStartTime() time.Time {
 	return s.startTime
 }
 
+// GetJwtChecker returns the jwt checker of this web server
+func (s *Server) GetJwtChecker() JwtChecker {
+	return s.JwtCheck
+}
+
 // StartServer initializes all the handlers paths of this web server, it is called inside the NewGoHttpServer constructor
 func (s *Server) StartServer() error {
 	// Starting the web server in his own goroutine
@@ -214,4 +215,10 @@ func waitForShutdownToExit(srv *http.Server, secondsToWait time.Duration) {
 	<-ctx.Done()
 	srv.ErrorLog.Println("INFO: 'Server gracefully stopped, will exit'")
 	os.Exit(0)
+}
+
+func TraceHttpRequest(handlerName string, r *http.Request, l golog.MyLogger) {
+	remoteIp := r.RemoteAddr // ip address of the original request or the last proxy
+	requestedUrlPath := r.URL.Path
+	l.Info("TraceHttp➡️ [%s] %s %s, %s", handlerName, r.Method, requestedUrlPath, remoteIp)
 }
