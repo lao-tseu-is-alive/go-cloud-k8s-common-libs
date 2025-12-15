@@ -2,13 +2,14 @@ package info
 
 import (
 	"fmt"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/gohttpclient"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/gohttpclient"
+	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 )
 
 type K8sInfo struct {
@@ -117,7 +118,7 @@ func GetKubernetesConnInfo(l golog.MyLogger, defaultReadTimeout time.Duration) (
 		}
 	}
 	urlVersion := fmt.Sprintf("%s/openapi/v2", k8sUrl)
-	res, err := gohttpclient.GetJsonFromUrlWithBearerAuth(urlVersion, info.Token, K8sCaCert, l, defaultReadTimeout)
+	res, err := gohttpclient.GetJsonFromUrlWithBearerAuth(urlVersion, info.Token, K8sCaCert, false, defaultReadTimeout, l)
 	if err != nil {
 
 		l.Info("GetKubernetesConnInfo: error in GetJsonFromUrl(url:%s) err:%v", urlVersion, err)

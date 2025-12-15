@@ -132,7 +132,7 @@
             tokenEl.innerHTML = `
 export TOKEN="${token}"
 
-curl -v  -H "Authorization: Bearer \${TOKEN}" http://localhost:6969/api/v1/secret|jq
+curl -v  -H "Authorization: Bearer \${TOKEN}" http://localhost:6969/api/v1/status|jq
             `;
                 msg.innerHTML = `response from server<pre>${niceToReadResponse}</pre>`;
             } else {

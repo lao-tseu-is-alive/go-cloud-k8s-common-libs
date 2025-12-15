@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"embed"
 	"errors"
@@ -111,8 +112,9 @@ func (s Service) getJwtCookieFromF5(ctx echo.Context) error {
 		h.Write([]byte(version.APP))
 		// just to get a valid hash, not used with F5
 		appPasswordHash := fmt.Sprintf("%x", h.Sum(nil))
-		if s.auth.AuthenticateUser(login, appPasswordHash) {
-			userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(login)
+		requestCtx := ctx.Request().Context()
+		if s.auth.AuthenticateUser(requestCtx, login, appPasswordHash) {
+			userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(requestCtx, login)
 			if err != nil {
 				errMsg := fmt.Sprintf("getJwtCookieFromF5 failed to get user info from login: %v", err)
 				s.Logger.Error(errMsg)
@@ -182,8 +184,9 @@ func (s Service) login(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{"status": "error", "message": errMsg})
 	}
 	s.Logger.Debug("About to check username: %s , password: %s", uLogin.Username, uLogin.PasswordHash)
-	if s.server.Authenticator.AuthenticateUser(uLogin.Username, uLogin.PasswordHash) {
-		userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(login)
+	requestCtx := ctx.Request().Context()
+	if s.server.Authenticator.AuthenticateUser(requestCtx, uLogin.Username, uLogin.PasswordHash) {
+		userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(requestCtx, login)
 		if err != nil {
 			errGetUInfFromLogin := fmt.Sprintf("Error getting user info from login: %v", err)
 			s.Logger.Error(errGetUInfFromLogin)
@@ -220,8 +223,9 @@ func (s Service) GetStatus(ctx echo.Context) error {
 	currentUserId := claims.User.UserId
 	currentUserLogin := claims.User.Login
 	s.Logger.Info("in GetStatus : currentUserId: %d", currentUserId)
+	requestCtx := ctx.Request().Context()
 	// you can check if the user is not active anymore and RETURN 401 Unauthorized
-	if !s.Store.Exist(currentUserLogin) {
+	if !s.Store.Exist(requestCtx, currentUserLogin) {
 		return ctx.JSON(http.StatusUnauthorized, map[string]string{"status": "error", "message": "current calling user does not exist"})
 	}
 	return ctx.JSON(http.StatusOK, map[string]interface{}{"status": "success", "claims": claims})
@@ -235,13 +239,15 @@ func main() {
 	l.Info("🚀🚀 Starting:'%s', v%s, rev:%s, build:%v from: %s", version.APP, version.VERSION, version.REVISION, version.BuildStamp, version.REPOSITORY)
 
 	dbDsn := config.GetPgDbDsnUrlFromEnvOrPanic(defaultDBIp, defaultDBPort, tools.ToSnakeCase(version.APP), version.AppSnake, defaultDBSslMode)
-	db, err := database.GetInstance("pgx", dbDsn, runtime.NumCPU(), l)
+	dbConnCtx, dbConnCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer dbConnCancel()
+	db, err := database.GetInstance(dbConnCtx, "pgx", dbDsn, runtime.NumCPU(), l)
 	if err != nil {
 		l.Fatal("💥💥 error doing database.GetInstance(pgx ...) error: %v", err)
 	}
 	defer db.Close()
 
-	dbVersion, err := db.GetVersion()
+	dbVersion, err := db.GetVersion(context.Background())
 	if err != nil {
 		l.Fatal("💥💥 error doing dbConn.GetVersion() error: %v", err)
 	}
@@ -249,14 +255,14 @@ func main() {
 
 	// checking metadata information
 	metadataService := metadata.Service{Log: l, Db: db}
-	metadataService.CreateMetadataTableOrFail()
-	found, ver := metadataService.GetServiceVersionOrFail(version.APP)
+	metadataService.CreateMetadataTableOrFail(context.Background())
+	found, ver := metadataService.GetServiceVersionOrFail(context.Background(), version.APP)
 	if found {
 		l.Info("service %s was found in metadata with version: %s", version.APP, ver)
 	} else {
 		l.Info("service %s was not found in metadata", version.APP)
 	}
-	metadataService.SetServiceVersionOrFail(version.APP, version.VERSION)
+	metadataService.SetServiceVersionOrFail(context.Background(), version.APP, version.VERSION)
 
 	// Get the ENV JWT_AUTH_URL value
 	jwtAuthUrl := config.GetJwtAuthUrlFromEnvOrPanic()
@@ -329,7 +335,7 @@ func main() {
 		AllowMethods: []string{http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete},
 	}))
 	e.GET("/readiness", server.GetReadinessHandler(func(info string) bool {
-		ver, err := db.GetVersion()
+		ver, err := db.GetVersion(context.Background())
 		if err != nil {
 			l.Error("Error getting db version : %v", err)
 			return false
@@ -339,7 +345,7 @@ func main() {
 	}, "Connection to DB"))
 	e.GET("/health", server.GetHealthHandler(func(info string) bool {
 		// you decide what makes you ready, may be it is the connection to the database
-		getVersion, err := db.GetVersion()
+		getVersion, err := db.GetVersion(context.Background())
 		if err != nil {
 			l.Error("Error getting db version : %v", err)
 			return false

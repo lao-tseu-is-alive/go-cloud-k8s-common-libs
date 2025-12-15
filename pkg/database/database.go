@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -15,14 +16,14 @@ var (
 
 // DB is the interface for a simple table store.
 type DB interface {
-	ExecActionQuery(sql string, arguments ...interface{}) (rowsAffected int, err error)
-	Insert(sql string, arguments ...interface{}) (lastInsertId int, err error)
-	GetQueryInt(sql string, arguments ...interface{}) (result int, err error)
-	GetQueryBool(sql string, arguments ...interface{}) (result bool, err error)
-	GetQueryString(sql string, arguments ...interface{}) (result string, err error)
-	GetVersion() (result string, err error)
+	ExecActionQuery(ctx context.Context, sql string, arguments ...interface{}) (rowsAffected int, err error)
+	Insert(ctx context.Context, sql string, arguments ...interface{}) (lastInsertId int, err error)
+	GetQueryInt(ctx context.Context, sql string, arguments ...interface{}) (result int, err error)
+	GetQueryBool(ctx context.Context, sql string, arguments ...interface{}) (result bool, err error)
+	GetQueryString(ctx context.Context, sql string, arguments ...interface{}) (result string, err error)
+	GetVersion(ctx context.Context) (result string, err error)
 	GetPGConn() (Conn *pgxpool.Pool, err error)
-	DoesTableExist(schema, table string) (exist bool)
+	DoesTableExist(ctx context.Context, schema, table string) (exist bool)
 	Close()
 }
 
@@ -31,12 +32,12 @@ func GetErrorF(errMsg string, err error) error {
 }
 
 // GetInstance with appropriate driver
-func GetInstance(dbDriver, dbConnectionString string, maxConnectionCount int, log golog.MyLogger) (DB, error) {
+func GetInstance(ctx context.Context, dbDriver, dbConnectionString string, maxConnectionCount int, log golog.MyLogger) (DB, error) {
 	var err error
 	var db DB
 
 	if dbDriver == "pgx" {
-		db, err = newPgxConn(dbConnectionString, maxConnectionCount, log)
+		db, err = newPgxConn(ctx, dbConnectionString, maxConnectionCount, log)
 		if err != nil {
 			return nil, fmt.Errorf("error opening postgresql database with pgx driver: %s", err)
 		}

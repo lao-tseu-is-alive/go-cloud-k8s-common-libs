@@ -1,15 +1,17 @@
 package f5
 
 import (
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
+
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/goHttpEcho"
 )
 
 type Authentication interface {
-	AuthenticateUser(user, passwordHash string) bool
-	GetUserInfoFromLogin(login string) (*goHttpEcho.UserInfo, error)
+	AuthenticateUser(ctx context.Context, user, passwordHash string) bool
+	GetUserInfoFromLogin(ctx context.Context, login string) (*goHttpEcho.UserInfo, error)
 }
 
 // Authenticator Create a struct that will implement the Authentication interface
@@ -25,7 +27,7 @@ type Authenticator struct {
 }
 
 // AuthenticateUser Implement the AuthenticateUser method for F5Authenticator
-func (sa *Authenticator) AuthenticateUser(userLogin, passwordHash string) bool {
+func (sa *Authenticator) AuthenticateUser(ctx context.Context, userLogin, passwordHash string) bool {
 	l := sa.jwtChecker.GetLogger()
 	l.Info("AuthenticateUser(%s)", userLogin)
 	err := ValidateLogin(userLogin)
@@ -43,7 +45,7 @@ func (sa *Authenticator) AuthenticateUser(userLogin, passwordHash string) bool {
 		return true
 	}
 	// look in db
-	if sa.store.Exist(userLogin) {
+	if sa.store.Exist(ctx, userLogin) {
 		return true
 	}
 	//MAYBE add login failure to DB ?
@@ -52,11 +54,11 @@ func (sa *Authenticator) AuthenticateUser(userLogin, passwordHash string) bool {
 }
 
 // GetUserInfoFromLogin Get the JWT claims from the login User
-func (sa *Authenticator) GetUserInfoFromLogin(login string) (*goHttpEcho.UserInfo, error) {
+func (sa *Authenticator) GetUserInfoFromLogin(ctx context.Context, login string) (*goHttpEcho.UserInfo, error) {
 	l := sa.jwtChecker.GetLogger()
 	l.Info("GetUserInfoFromLogin(%s)", login)
-	if sa.store.Exist(login) {
-		u, err := sa.store.Get(login)
+	if sa.store.Exist(ctx, login) {
+		u, err := sa.store.Get(ctx, login)
 		if err != nil {
 			msg := fmt.Sprintf("GetUserInfoFromLogin(%s) failed doing store.Get err: %s", login, err)
 			l.Warn(msg)

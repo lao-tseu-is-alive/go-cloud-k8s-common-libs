@@ -19,6 +19,7 @@ const (
 	APP                 = "goCloudK8sCommonLibsDemoServer"
 	defaultPort         = 8080
 	defaultJwtStatusUrl = "/status"
+	restrictedUrl       = "/api/v1"
 	defaultWebRootDir   = "web/"
 	defaultAdminUser    = "goadmin"
 	defaultAdminEmail   = "goadmin@yourdomain.org"
@@ -50,8 +51,9 @@ func (s Service) login(ctx echo.Context) error {
 		return ctx.JSON(http.StatusUnauthorized, "invalid credentials")
 	}
 
-	if s.server.Authenticator.AuthenticateUser(login, passwordHash) {
-		userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(login)
+	requestCtx := ctx.Request().Context()
+	if s.server.Authenticator.AuthenticateUser(requestCtx, login, passwordHash) {
+		userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(requestCtx, login)
 		if err != nil {
 			errGetUInfFromLogin := fmt.Sprintf("Error getting user info from login: %v", err)
 			s.Logger.Error(errGetUInfFromLogin)
@@ -136,7 +138,7 @@ func main() {
 			Logger:        l,
 			WebRootDir:    defaultWebRootDir,
 			Content:       content,
-			RestrictedUrl: "/api/v1",
+			RestrictedUrl: restrictedUrl,
 		},
 	)
 

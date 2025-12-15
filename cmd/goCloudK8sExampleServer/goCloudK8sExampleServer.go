@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"errors"
 	"fmt"
@@ -74,8 +75,9 @@ func (s Service) login(ctx echo.Context) error {
 		return ctx.JSON(http.StatusUnauthorized, "invalid credentials")
 	}
 
-	if s.server.Authenticator.AuthenticateUser(login, passwordHash) {
-		userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(login)
+	requestCtx := ctx.Request().Context()
+	if s.server.Authenticator.AuthenticateUser(requestCtx, login, passwordHash) {
+		userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(requestCtx, login)
 		if err != nil {
 			myErrMsg := fmt.Sprintf("Error getting user info from login: %v", err)
 			s.Logger.Error(myErrMsg)
@@ -164,13 +166,15 @@ func main() {
 	l.Info("🚀🚀 Starting:'%s', v%s, rev:%s, build:%v from: %s", APP, version.VERSION, version.REVISION, version.BuildStamp, version.REPOSITORY)
 
 	dbDsn := config.GetPgDbDsnUrlFromEnvOrPanic(defaultDBIp, defaultDBPort, tools.ToSnakeCase(version.APP), version.AppSnake, defaultDBSslMode)
-	db, err := database.GetInstance("pgx", dbDsn, runtime.NumCPU(), l)
+	dbConnCtx, dbConnCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer dbConnCancel()
+	db, err := database.GetInstance(dbConnCtx, "pgx", dbDsn, runtime.NumCPU(), l)
 	if err != nil {
 		l.Fatal("💥💥 error doing database.GetInstance(pgx ...) error: %v", err)
 	}
 	defer db.Close()
 
-	dbVersion, err := db.GetVersion()
+	dbVersion, err := db.GetVersion(context.Background())
 	if err != nil {
 		l.Fatal("💥💥 error doing dbConn.GetVersion() error: %v", err)
 	}
@@ -178,14 +182,14 @@ func main() {
 
 	// checking metadata information
 	metadataService := metadata.Service{Log: l, Db: db}
-	metadataService.CreateMetadataTableOrFail()
-	found, ver := metadataService.GetServiceVersionOrFail(version.APP)
+	metadataService.CreateMetadataTableOrFail(context.Background())
+	found, ver := metadataService.GetServiceVersionOrFail(context.Background(), version.APP)
 	if found {
 		l.Info("service %s was found in metadata with version: %s", version.APP, ver)
 	} else {
 		l.Info("service %s was not found in metadata", version.APP)
 	}
-	metadataService.SetServiceVersionOrFail(version.APP, version.VERSION)
+	metadataService.SetServiceVersionOrFail(context.Background(), version.APP, version.VERSION)
 
 	// https://github.com/golang-migrate/migrate
 	d, err := iofs.New(sqlMigrations, defaultSqlDbMigrationsPath)
@@ -258,7 +262,7 @@ func main() {
 	e := server.GetEcho()
 	e.Use(middleware.Logger()) // Automatically logs requests
 	e.GET("/readiness", server.GetReadinessHandler(func(info string) bool {
-		ver, err := db.GetVersion()
+		ver, err := db.GetVersion(context.Background())
 		if err != nil {
 			l.Error("Error getting db version : %v", err)
 			return false

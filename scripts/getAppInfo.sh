@@ -1,6 +1,6 @@
 #!/bin/bash
 SOURCE_CODE=pkg/version/version.go
-if [ -f "$SOURCE_CODE" ]; then
+if [[ -f "$SOURCE_CODE" ]]; then
   echo "## Extracting app name and version from code in ${SOURCE_CODE}"
   APP_NAME=$(grep -E 'APP\s+=' $SOURCE_CODE| awk '{ print $3 }'  | tr -d '"')
   APP_VERSION=$(grep -E 'VERSION\s+=' $SOURCE_CODE| awk '{ print $3 }'  | tr -d '"')

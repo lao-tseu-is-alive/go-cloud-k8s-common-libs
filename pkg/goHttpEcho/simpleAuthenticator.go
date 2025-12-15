@@ -1,13 +1,14 @@
 package goHttpEcho
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 )
 
 type Authentication interface {
-	AuthenticateUser(user, passwordHash string) bool
-	GetUserInfoFromLogin(login string) (*UserInfo, error)
+	AuthenticateUser(ctx context.Context, user, passwordHash string) bool
+	GetUserInfoFromLogin(ctx context.Context, login string) (*UserInfo, error)
 }
 
 // SimpleAdminAuthenticator Create a struct that will implement the Authentication interface
@@ -22,7 +23,7 @@ type SimpleAdminAuthenticator struct {
 }
 
 // AuthenticateUser Implement the AuthenticateUser method for SimpleAdminAuthenticator
-func (sa *SimpleAdminAuthenticator) AuthenticateUser(userLogin, passwordHash string) bool {
+func (sa *SimpleAdminAuthenticator) AuthenticateUser(ctx context.Context, userLogin, passwordHash string) bool {
 	l := sa.jwtChecker.GetLogger()
 	l.Info("mainAdminUserLogin: %s", userLogin)
 	//l.Info("mainAdminPasswordHash: %s", passwordHash)
@@ -34,7 +35,7 @@ func (sa *SimpleAdminAuthenticator) AuthenticateUser(userLogin, passwordHash str
 }
 
 // GetUserInfoFromLogin Get the JWT claims from the login User
-func (sa *SimpleAdminAuthenticator) GetUserInfoFromLogin(login string) (*UserInfo, error) {
+func (sa *SimpleAdminAuthenticator) GetUserInfoFromLogin(ctx context.Context, login string) (*UserInfo, error) {
 	user := &UserInfo{
 		UserId:     sa.mainAdminId,
 		ExternalId: sa.mainAdminExternalId,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,15 +18,15 @@ type PGX struct {
 	log  golog.MyLogger
 }
 
-func (db *PGX) Get(login string) (*User, error) {
+func (db *PGX) Get(ctx context.Context, login string) (*User, error) {
 	db.log.Debug("trace : entering Get(%v)", login)
-	if !db.Exist(login) {
+	if !db.Exist(ctx, login) {
 		msg := fmt.Sprintf(UserDoesNotExist, login)
 		db.log.Warn(msg)
 		return nil, errors.New(msg)
 	}
 	res := &User{}
-	err := pgxscan.Get(context.Background(), db.Conn, res, getUser, login)
+	err := pgxscan.Get(ctx, db.Conn, res, getUser, login)
 	if err != nil {
 		db.log.Error(SelectFailedInNWithErrorE, "Get", err)
 		return nil, err
@@ -37,9 +38,9 @@ func (db *PGX) Get(login string) (*User, error) {
 	return res, nil
 }
 
-func (db *PGX) Exist(login string) bool {
+func (db *PGX) Exist(ctx context.Context, login string) bool {
 	db.log.Debug("trace : entering Exist(%v)", login)
-	count, err := db.dbi.GetQueryInt(existUser, login)
+	count, err := db.dbi.GetQueryInt(ctx, existUser, login)
 	if err != nil {
 		db.log.Error("Exist(%v) could not be retrieved from DB. failed db.Query err: %v", login, err)
 		return false
