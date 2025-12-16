@@ -1,0 +1,17 @@
+# Codecov configuration
+# https://docs.codecov.com/docs/codecovyml-reference
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: auto
+
+ignore:
+  - "cmd/minServer/**/*"
+  - "cmd/goEmployeJwtServer/**/*"
+  - "pkg/version/**/*"  # no test files, just version constants
