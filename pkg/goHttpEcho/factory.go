@@ -1,8 +1,9 @@
 package goHttpEcho
 
 import (
+	"log/slog"
+
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 )
 
 // JwtConfig holds all JWT-related configuration
@@ -46,7 +47,7 @@ func GetJwtConfig(audience string, defaultDurationMins int) (*JwtConfig, error) 
 // GetNewJwtCheckerFromConfig creates a JwtChecker from environment configuration.
 // The audience parameter is the application name (used as the JWT subject).
 // Returns error if any required JWT environment variable is missing or invalid.
-func GetNewJwtCheckerFromConfig(audience string, defaultDurationMins int, logger golog.MyLogger) (JwtChecker, error) {
+func GetNewJwtCheckerFromConfig(audience string, defaultDurationMins int, logger *slog.Logger) (JwtChecker, error) {
 	cfg, err := GetJwtConfig(audience, defaultDurationMins)
 	if err != nil {
 		return nil, err

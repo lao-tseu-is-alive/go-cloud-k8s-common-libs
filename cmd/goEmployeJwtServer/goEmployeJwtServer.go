@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"runtime"
@@ -54,7 +55,7 @@ type Service struct {
 	// AllowedHostnames is a list of strings which will be matched to the client
 	// requesting for a connection upgrade to a websocket connection
 	AllowedHostnames []string
-	Logger           golog.MyLogger
+	Logger           *slog.Logger
 	Store            f5.Storage
 	dbConn           database.DB
 	server           *goHttpEcho.Server
@@ -62,9 +63,9 @@ type Service struct {
 	jwtCookieName    string
 }
 
-func validateHostAllowed(r *http.Request, allowedHostnames []string, l golog.MyLogger) error {
+func validateHostAllowed(r *http.Request, allowedHostnames []string, l *slog.Logger) error {
 	requesterHostname := r.Host
-	l.Info("validateHostAllowed(remote host: %s)", requesterHostname)
+	l.Info("validateHostAllowed", "remoteHost", requesterHostname)
 	if slices.Contains(allowedHostnames, "*") {
 		return nil
 	}
@@ -101,7 +102,7 @@ func (s Service) getJwtCookieFromF5(ctx echo.Context) error {
 		s.Logger.Warn(errMsg)
 		return ctx.JSON(http.StatusUnauthorized, map[string]string{"status": "error", "message": errMsg})
 	} else {
-		s.Logger.Debug("About to check username: %s ", login)
+		s.Logger.Debug("About to check username", "username", login)
 		err := f5.ValidateLogin(login)
 		if err != nil {
 			errMsg := fmt.Sprintf("error validating user login: %v", err)
@@ -161,7 +162,7 @@ func (s Service) login(ctx echo.Context) error {
 	uLogin := new(UserLogin)
 	login := ctx.FormValue("login")
 	passwordHash := ctx.FormValue("hashed")
-	s.Logger.Debug("login: %s, hash: %s ", login, passwordHash)
+	s.Logger.Debug("login attempt", "login", login)
 	// maybe it was not a form but a fetch data post
 	if len(strings.Trim(login, " ")) < 1 {
 		if err := ctx.Bind(uLogin); err != nil {
@@ -183,7 +184,7 @@ func (s Service) login(ctx echo.Context) error {
 		s.Logger.Error(errMsg)
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{"status": "error", "message": errMsg})
 	}
-	s.Logger.Debug("About to check username: %s , password: %s", uLogin.Username, uLogin.PasswordHash)
+	s.Logger.Debug("About to check username", "username", uLogin.Username)
 	requestCtx := ctx.Request().Context()
 	if s.server.Authenticator.AuthenticateUser(requestCtx, uLogin.Username, uLogin.PasswordHash) {
 		userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(requestCtx, login)
@@ -203,7 +204,7 @@ func (s Service) login(ctx echo.Context) error {
 			"status": "success",
 			"token":  token.String(),
 		}
-		s.Logger.Info("LoginUser(%s) successful login", login)
+		s.Logger.Info("LoginUser successful login", "login", login)
 		return ctx.JSON(http.StatusOK, response)
 	} else {
 		return ctx.JSON(http.StatusUnauthorized, map[string]string{"status": "error", "message": "username not found or password invalid"})
@@ -222,7 +223,7 @@ func (s Service) GetStatus(ctx echo.Context) error {
 	claims := s.server.JwtCheck.GetJwtCustomClaimsFromContext(ctx)
 	currentUserId := claims.User.UserId
 	currentUserLogin := claims.User.Login
-	s.Logger.Info("in GetStatus : currentUserId: %d", currentUserId)
+	s.Logger.Info("in GetStatus", "currentUserId", currentUserId)
 	requestCtx := ctx.Request().Context()
 	// you can check if the user is not active anymore and RETURN 401 Unauthorized
 	if !s.Store.Exist(requestCtx, currentUserLogin) {
@@ -232,45 +233,46 @@ func (s Service) GetStatus(ctx echo.Context) error {
 }
 
 func main() {
-	l, err := golog.NewLogger("simple", os.Stdout, golog.DebugLevel, version.APP)
-	if err != nil {
-		log.Fatalf("💥💥 error log.NewLogger error: %v'\n", err)
-	}
-	l.Info("🚀🚀 Starting:'%s', v%s, rev:%s, build:%v from: %s", version.APP, version.VERSION, version.REVISION, version.BuildStamp, version.REPOSITORY)
+	l := golog.NewLogger("simple", os.Stdout, golog.DebugLevel, version.APP)
+	l.Info("🚀🚀 Starting", "app", version.APP, "version", version.VERSION, "revision", version.REVISION, "build", version.BuildStamp, "repository", version.REPOSITORY)
 
 	dbDsn, err := config.GetPgDbDsnUrl(defaultDBIp, defaultDBPort, tools.ToSnakeCase(version.APP), version.AppSnake, defaultDBSslMode)
 	if err != nil {
-		l.Fatal("💥💥 error getting database DSN: %v", err)
+		l.Error("💥💥 error getting database DSN", "error", err)
+		os.Exit(1)
 	}
 	dbConnCtx, dbConnCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer dbConnCancel()
 	db, err := database.GetInstance(dbConnCtx, "pgx", dbDsn, runtime.NumCPU(), l)
 	if err != nil {
-		l.Fatal("💥💥 error doing database.GetInstance(pgx ...) error: %v", err)
+		l.Error("💥💥 error doing database.GetInstance", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
 	dbVersion, err := db.GetVersion(context.Background())
 	if err != nil {
-		l.Fatal("💥💥 error doing dbConn.GetVersion() error: %v", err)
+		l.Error("💥💥 error doing dbConn.GetVersion", "error", err)
+		os.Exit(1)
 	}
-	l.Info("connected to db version : %s", dbVersion)
+	l.Info("connected to db", "version", dbVersion)
 
 	// checking metadata information
 	metadataService := metadata.Service{Log: l, Db: db}
 	metadataService.CreateMetadataTableOrFail(context.Background())
 	found, ver := metadataService.GetServiceVersionOrFail(context.Background(), version.APP)
 	if found {
-		l.Info("service %s was found in metadata with version: %s", version.APP, ver)
+		l.Info("service was found in metadata", "service", version.APP, "version", ver)
 	} else {
-		l.Info("service %s was not found in metadata", version.APP)
+		l.Info("service was not found in metadata", "service", version.APP)
 	}
 	metadataService.SetServiceVersionOrFail(context.Background(), version.APP, version.VERSION)
 
 	// Get the ENV JWT_AUTH_URL value
 	jwtAuthUrl, err := config.GetJwtAuthUrl()
 	if err != nil {
-		l.Fatal("💥💥 error getting JWT auth URL: %v", err)
+		l.Error("💥💥 error getting JWT auth URL", "error", err)
+		os.Exit(1)
 	}
 	jwtStatusUrl := config.GetJwtStatusUrl(defaultJwtStatusUrl)
 
@@ -287,35 +289,42 @@ func main() {
 	// Create a new JWT checker using factory function
 	myJwt, err := goHttpEcho.GetNewJwtCheckerFromConfig(version.APP, 60, l)
 	if err != nil {
-		l.Fatal("💥💥 error creating JWT checker: %v", err)
+		l.Error("💥💥 error creating JWT checker", "error", err)
+		os.Exit(1)
 	}
 
 	allowedHosts, err := config.GetAllowedHosts()
 	if err != nil {
-		l.Fatal("💥💥 error getting allowed hosts: %v", err)
+		l.Error("💥💥 error getting allowed hosts", "error", err)
+		os.Exit(1)
 	}
 	myF5Store := f5.GetStorageInstanceOrPanic("pgx", db, l)
 
 	// Get admin config
 	adminId, err := config.GetAdminId(defaultAdminId)
 	if err != nil {
-		l.Fatal("💥💥 error getting admin ID: %v", err)
+		l.Error("💥💥 error getting admin ID", "error", err)
+		os.Exit(1)
 	}
 	adminExternalId, err := config.GetAdminExternalId(99999)
 	if err != nil {
-		l.Fatal("💥💥 error getting admin external ID: %v", err)
+		l.Error("💥💥 error getting admin external ID", "error", err)
+		os.Exit(1)
 	}
 	adminEmail, err := config.GetAdminEmail(defaultAdminEmail)
 	if err != nil {
-		l.Fatal("💥💥 error getting admin email: %v", err)
+		l.Error("💥💥 error getting admin email", "error", err)
+		os.Exit(1)
 	}
 	adminUser, err := config.GetAdminUser(defaultAdminUser)
 	if err != nil {
-		l.Fatal("💥💥 error getting admin user: %v", err)
+		l.Error("💥💥 error getting admin user", "error", err)
+		os.Exit(1)
 	}
 	adminPassword, err := config.GetAdminPassword()
 	if err != nil {
-		l.Fatal("💥💥 error getting admin password: %v", err)
+		l.Error("💥💥 error getting admin password", "error", err)
+		os.Exit(1)
 	}
 
 	// Create a new Authenticator with F5
@@ -349,7 +358,8 @@ func main() {
 		},
 	)
 	if err != nil {
-		l.Fatal("💥💥 error creating server: %v", err)
+		l.Error("💥💥 error creating server", "error", err)
+		os.Exit(1)
 	}
 	cookieNameForJWT := config.GetJwtCookieName(defaultJwtCookieName)
 	myF5Service := Service{
@@ -371,20 +381,20 @@ func main() {
 	e.GET("/readiness", server.GetReadinessHandler(func(info string) bool {
 		ver, err := db.GetVersion(context.Background())
 		if err != nil {
-			l.Error("Error getting db version : %v", err)
+			l.Error("Error getting db version", "error", err)
 			return false
 		}
-		l.Info("Connected to DB version : %s", ver)
+		l.Info("Connected to DB", "version", ver)
 		return true
 	}, "Connection to DB"))
 	e.GET("/health", server.GetHealthHandler(func(info string) bool {
 		// you decide what makes you ready, may be it is the connection to the database
 		getVersion, err := db.GetVersion(context.Background())
 		if err != nil {
-			l.Error("Error getting db version : %v", err)
+			l.Error("Error getting db version", "error", err)
 			return false
 		}
-		l.Info("%s DB version : %s", info, getVersion)
+		l.Info("DB version", "info", info, "version", getVersion)
 		return true
 	}, "Connection to DB"))
 
@@ -400,6 +410,6 @@ func main() {
 
 	err = server.StartServer()
 	if err != nil {
-		l.Fatal("💥💥 error doing server.StartServer error: %v'\n", err)
+		log.Fatalf("💥💥 error doing server.StartServer error: %v'\n", err)
 	}
 }

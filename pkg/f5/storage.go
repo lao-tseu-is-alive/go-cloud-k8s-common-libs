@@ -3,9 +3,9 @@ package f5
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/database"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 )
 
 type Storage interface {
@@ -15,7 +15,7 @@ type Storage interface {
 	Exist(ctx context.Context, login string) bool
 }
 
-func GetStorageInstanceOrPanic(dbDriver string, db database.DB, l golog.MyLogger) Storage {
+func GetStorageInstanceOrPanic(dbDriver string, db database.DB, l *slog.Logger) Storage {
 	var store Storage
 	var err error
 	switch dbDriver {

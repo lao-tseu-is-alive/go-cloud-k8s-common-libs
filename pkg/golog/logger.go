@@ -2,19 +2,9 @@ package golog
 
 import (
 	"io"
-	"log"
+	"log/slog"
+	"os"
 )
-
-// MyLogger defines a minimal leveled logging interface with printf-style methods.
-// Implementations should treat v as fmt.Sprintf arguments and honor the configured level.
-type MyLogger interface {
-	Debug(msg string, v ...any)
-	Info(msg string, v ...any)
-	Warn(msg string, v ...any)
-	Error(msg string, v ...any)
-	Fatal(msg string, v ...any)
-	GetDefaultLogger() (*log.Logger, error)
-}
 
 // Level represents the logging verbosity threshold.
 // Lower values are more verbose (Debug) and higher values are more severe (Fatal).
@@ -34,21 +24,42 @@ const (
 	FatalLevel // most severe
 )
 
-func NewLogger(loggerType string, out io.Writer, logLevel Level, prefix string) (MyLogger, error) {
-	var (
-		logger MyLogger
-		err    error
-	)
-
-	switch loggerType {
-	case "zap":
-		logger, err = NewZapLogger(out, logLevel, prefix)
-	default:
-		logger, err = NewSimpleLogger(out, logLevel, prefix)
-		if err != nil {
-			return nil, err
-		}
+// NewLogger creates a *slog.Logger with the specified handler type.
+// loggerType can be:
+//   - "json": JSON output for production (uses slog.JSONHandler)
+//   - "text": Plain text key=value output (uses slog.TextHandler)
+//   - "colored" or "simple" or default: Colored output for development (uses ColoredHandler)
+//
+// The prefix parameter is added as a "prefix" attribute to all log entries when using json/text handlers.
+// For colored output, the prefix is currently ignored (but could be shown in the output format).
+func NewLogger(loggerType string, out io.Writer, logLevel Level, prefix string) *slog.Logger {
+	if out == nil {
+		out = os.Stderr
 	}
 
-	return logger, nil
+	slogLevel := SlogLevel(logLevel)
+	opts := &slog.HandlerOptions{
+		Level:     slogLevel,
+		AddSource: true,
+	}
+
+	var handler slog.Handler
+	switch loggerType {
+	case "json", "zap": // "zap" for backwards compatibility
+		handler = slog.NewJSONHandler(out, opts)
+	case "text":
+		handler = slog.NewTextHandler(out, opts)
+	default:
+		// "colored", "simple", or any other value -> development colored output
+		handler = NewColoredHandler(out, opts)
+	}
+
+	logger := slog.New(handler)
+
+	// Add prefix as an attribute if provided (for json/text handlers)
+	if prefix != "" && (loggerType == "json" || loggerType == "zap" || loggerType == "text") {
+		logger = logger.With("prefix", prefix)
+	}
+
+	return logger
 }

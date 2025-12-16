@@ -1,11 +1,12 @@
 package goHttpEcho
 
 import (
+	"log/slog"
+
 	"github.com/labstack/echo/v4"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 )
 
-func CookieToHeaderMiddleware(cookieName string, l golog.MyLogger) echo.MiddlewareFunc {
+func CookieToHeaderMiddleware(cookieName string, l *slog.Logger) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			authHeader := c.Request().Header.Get("Authorization")

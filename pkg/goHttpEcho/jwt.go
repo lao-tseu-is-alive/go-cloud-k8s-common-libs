@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/cristalhq/jwt/v5"
 	"github.com/labstack/echo/v4"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 	"github.com/rs/xid"
 )
 
@@ -18,7 +18,7 @@ type JwtChecker interface {
 	ParseToken(jwtToken string) (*JwtCustomClaims, error)
 	GetTokenFromUserInfo(userInfo *UserInfo) (*jwt.Token, error)
 	JwtMiddleware(next echo.HandlerFunc) echo.HandlerFunc
-	GetLogger() golog.MyLogger
+	GetLogger() *slog.Logger
 	GetJwtDuration() int
 	GetIssuerId() string
 	GetJwtCustomClaimsFromContext(c echo.Context) *JwtCustomClaims
@@ -47,7 +47,7 @@ type JwtInfo struct {
 	IssuerId      string `json:"issuer_id"`
 	Subject       string `json:"subject"`
 	JwtContextKey string `json:"jwt_context_key"` // Context key for storing the JWT token
-	logger        golog.MyLogger
+	logger        *slog.Logger
 }
 
 func (ji *JwtInfo) ParseToken(jwtToken string) (*JwtCustomClaims, error) {
@@ -69,23 +69,15 @@ func (ji *JwtInfo) ParseToken(jwtToken string) (*JwtCustomClaims, error) {
 		return nil, errors.New(fmt.Sprintf("ParseToken: error unmarshaling RegisteredClaims: %s", err))
 	}
 
-	l.Debug("JWT ParseToken, Algorithm %v", token.Header().Algorithm)
-	l.Debug("JWT ParseToken, Type      %v", token.Header().Type)
-	l.Debug("JWT ParseToken, Claims    %v", string(token.Claims()))
-	l.Debug("JWT ParseToken, Payload   %v", string(token.PayloadPart()))
-	//l.Debug("JWT ParseToken, Token     %v", string(token.Bytes()))
-	l.Debug("JWT ParseToken, ParseTokenFunc : Claims:    %+v", string(token.Claims()))
+	l.Debug("JWT ParseToken", "algorithm", token.Header().Algorithm, "type", token.Header().Type)
+	l.Debug("JWT ParseToken", "claims", string(token.Claims()), "payload", string(token.PayloadPart()))
 	if newClaims.IsValidAt(time.Now()) {
 		claims := JwtCustomClaims{}
 		err := token.DecodeClaims(&claims)
 		if err != nil {
 			return nil, errors.New(fmt.Sprintf("ParseToken: unable to decode JwtCustomClaims, error: %s", err))
 		}
-		l.Debug("JWT ParseToken,  : claims.ID", claims.ID)
-		l.Debug("JWT ParseToken,  : claims.UserId", claims.User.UserId)
-		l.Debug("JWT ParseToken,  : claims.UserLogin", claims.User.Login)
-		l.Debug("JWT ParseToken,  : claims.UserName", claims.User.Name)
-		l.Debug("JWT ParseToken,  : claims.UserEmail", claims.User.Email)
+		l.Debug("JWT ParseToken valid", "claimsID", claims.ID, "userId", claims.User.UserId, "login", claims.User.Login)
 		// maybe find a way to evaluate if User is de-activated ( like in a User microservice )
 		//currentUserId := claims.UserId
 		//if store.IsUserActive(currentUserId) {
@@ -96,7 +88,7 @@ func (ji *JwtInfo) ParseToken(jwtToken string) (*JwtCustomClaims, error) {
 		//}
 		return &claims, nil // ALL IS GOOD HERE
 	} else {
-		l.Error("JWT ParseTokenFunc : IsValidAt(%+v)", time.Now())
+		l.Error("JWT ParseToken token expired", "time", time.Now())
 		return nil, errors.New("ParseToken: jwt token has expired")
 	}
 
@@ -117,10 +109,10 @@ func (ji *JwtInfo) JwtMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 			}
 		}
 		// get the token from the request
-		ji.logger.Debug("authHeader value: %s", authHeader)
+		ji.logger.Debug("authHeader", "value", authHeader)
 		tokenString := strings.Replace(authHeader, "Bearer ", "", 1)
 		tokenString = strings.Replace(tokenString, "Authorization, ", "", 1)
-		ji.logger.Debug("tokenString value: %s", tokenString)
+		ji.logger.Debug("tokenString", "value", tokenString)
 		// check if the token is valid
 		jwtClaims, err := ji.ParseToken(tokenString)
 		if err != nil {
@@ -131,7 +123,7 @@ func (ji *JwtInfo) JwtMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		}
 		// Token is valid, proceed to the next handler
 		// Store the valid JWT token in the request context
-		ji.logger.Debug(fmt.Sprintf("JwtMiddleware : user: %s got valid Token %s", jwtClaims.User.Login, jwtClaims.ID))
+		ji.logger.Debug("JwtMiddleware valid token", "user", jwtClaims.User.Login, "tokenId", jwtClaims.ID)
 		// Store the valid JWT token in the echo context
 		c.Set(ji.JwtContextKey, jwtClaims)
 		return next(c)
@@ -139,7 +131,7 @@ func (ji *JwtInfo) JwtMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 
 }
 
-func (ji *JwtInfo) GetLogger() golog.MyLogger {
+func (ji *JwtInfo) GetLogger() *slog.Logger {
 	return ji.logger
 }
 
@@ -185,7 +177,7 @@ func (ji *JwtInfo) GetJwtCustomClaimsFromContext(c echo.Context) *JwtCustomClaim
 }
 
 // NewJwtChecker creates a new JwtChecker
-func NewJwtChecker(secret, issuer, subject, contextKey string, duration int, l golog.MyLogger) JwtChecker {
+func NewJwtChecker(secret, issuer, subject, contextKey string, duration int, l *slog.Logger) JwtChecker {
 	return &JwtInfo{
 		Secret:        secret,
 		Duration:      duration,

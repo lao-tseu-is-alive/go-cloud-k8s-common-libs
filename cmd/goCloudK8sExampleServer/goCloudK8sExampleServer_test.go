@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -37,10 +36,7 @@ type testStruct struct {
 
 // TestMainExec is instantiating the "real" main code using the env variable (in your .env files if you use the Makefile rule)
 func TestMainExec(t *testing.T) {
-	l, err := golog.NewLogger("simple", os.Stdout, golog.DebugLevel, "TestMainExec")
-	if err != nil {
-		log.Fatalf("💥💥 error log.NewLogger error: %v'\n", err)
-	}
+	l := golog.NewLogger("simple", os.Stdout, golog.DebugLevel, "TestMainExec")
 	listenPort, err := config.GetPort(defaultPort)
 	if err != nil {
 		t.Fatalf("error getting port: %v", err)

@@ -29,15 +29,15 @@ type Authenticator struct {
 // AuthenticateUser Implement the AuthenticateUser method for F5Authenticator
 func (sa *Authenticator) AuthenticateUser(ctx context.Context, userLogin, passwordHash string) bool {
 	l := sa.jwtChecker.GetLogger()
-	l.Info("AuthenticateUser(%s)", userLogin)
+	l.Info("AuthenticateUser", "userLogin", userLogin)
 	err := ValidateLogin(userLogin)
 	if err != nil {
-		l.Warn("invalid user login : %s", err)
+		l.Warn("invalid user login", "error", err)
 		return false
 	}
 	err = ValidatePasswordHash(passwordHash)
 	if err != nil {
-		l.Warn("invalid password hash : %s", err)
+		l.Warn("invalid password hash", "error", err)
 		return false
 	}
 	// check if it's the env admin user
@@ -49,14 +49,14 @@ func (sa *Authenticator) AuthenticateUser(ctx context.Context, userLogin, passwo
 		return true
 	}
 	//MAYBE add login failure to DB ?
-	l.Warn("AuthenticateUser(%s) is false user will not be authenticated", userLogin)
+	l.Warn("AuthenticateUser is false user will not be authenticated", "userLogin", userLogin)
 	return false
 }
 
 // GetUserInfoFromLogin Get the JWT claims from the login User
 func (sa *Authenticator) GetUserInfoFromLogin(ctx context.Context, login string) (*goHttpEcho.UserInfo, error) {
 	l := sa.jwtChecker.GetLogger()
-	l.Info("GetUserInfoFromLogin(%s)", login)
+	l.Info("GetUserInfoFromLogin", "login", login)
 	if sa.store.Exist(ctx, login) {
 		u, err := sa.store.Get(ctx, login)
 		if err != nil {
@@ -96,7 +96,7 @@ func NewF5Authenticator(u *goHttpEcho.UserInfo, mainAdminPassword string, jwtChe
 	h := sha256.New()
 	h.Write([]byte(mainAdminPassword))
 	mainAdminPasswordHash := fmt.Sprintf("%x", h.Sum(nil))
-	l.Info("mainAdminUserLogin: %s", u.Login)
+	l.Info("mainAdminUserLogin", "login", u.Login)
 	return &Authenticator{
 		mainAdminUserLogin:    u.Login,
 		mainAdminPasswordHash: mainAdminPasswordHash,

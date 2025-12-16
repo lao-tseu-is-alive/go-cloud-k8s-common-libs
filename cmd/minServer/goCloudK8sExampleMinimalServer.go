@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -32,7 +33,7 @@ const (
 var content embed.FS
 
 type Service struct {
-	Logger golog.MyLogger
+	Logger *slog.Logger
 	server *goHttpEcho.Server
 }
 
@@ -41,7 +42,7 @@ func (s Service) login(ctx echo.Context) error {
 	goHttpEcho.TraceHttpRequest("login", ctx.Request(), s.Logger)
 	login := ctx.FormValue("login")
 	passwordHash := ctx.FormValue("hashed")
-	s.Logger.Debug("login: %s, hash: %s ", login, passwordHash)
+	s.Logger.Debug("login attempt", "login", login)
 	if len(strings.Trim(login, " ")) < 1 {
 		return ctx.JSON(http.StatusUnauthorized, "invalid credentials")
 	}
@@ -61,7 +62,7 @@ func (s Service) login(ctx echo.Context) error {
 			return ctx.JSON(http.StatusInternalServerError, errMsg)
 		}
 		response := map[string]string{"token": token.String()}
-		s.Logger.Info("LoginUser(%s) successful login", login)
+		s.Logger.Info("LoginUser successful login", "login", login)
 		return ctx.JSON(http.StatusOK, response)
 	}
 	return ctx.JSON(http.StatusUnauthorized, "username not found or password invalid")
@@ -71,21 +72,19 @@ func (s Service) restricted(ctx echo.Context) error {
 	goHttpEcho.TraceHttpRequest("restricted", ctx.Request(), s.Logger)
 	claims := s.server.JwtCheck.GetJwtCustomClaimsFromContext(ctx)
 	currentUserId := claims.User.UserId
-	s.Logger.Info("in restricted : currentUserId: %d", currentUserId)
+	s.Logger.Info("in restricted", "currentUserId", currentUserId)
 	return ctx.JSON(http.StatusCreated, claims)
 }
 
 func main() {
-	l, err := golog.NewLogger("simple", os.Stdout, golog.DebugLevel, APP)
-	if err != nil {
-		log.Fatalf("💥💥 error log.NewLogger error: %v'\n", err)
-	}
-	l.Info("🚀🚀 Starting:'%s', v%s, rev:%s, build:%v from: %s", APP, version.VERSION, version.REVISION, version.BuildStamp, version.REPOSITORY)
+	l := golog.NewLogger("simple", os.Stdout, golog.DebugLevel, APP)
+	l.Info("🚀🚀 Starting", "app", APP, "version", version.VERSION, "revision", version.REVISION, "build", version.BuildStamp, "repository", version.REPOSITORY)
 
 	// Get the ENV JWT_AUTH_URL value
 	jwtAuthUrl, err := config.GetJwtAuthUrl()
 	if err != nil {
-		l.Fatal("💥💥 error getting JWT auth URL: %v", err)
+		l.Error("💥💥 error getting JWT auth URL", "error", err)
+		os.Exit(1)
 	}
 	jwtStatusUrl := config.GetJwtStatusUrl(defaultJwtStatusUrl)
 
@@ -102,7 +101,8 @@ func main() {
 	// Create a new JWT checker using factory function
 	myJwt, err := goHttpEcho.GetNewJwtCheckerFromConfig(APP, 60, l)
 	if err != nil {
-		l.Fatal("💥💥 error creating JWT checker: %v", err)
+		l.Error("💥💥 error creating JWT checker", "error", err)
+		os.Exit(1)
 	}
 
 	// Create a new Authenticator using factory function
@@ -116,7 +116,8 @@ func main() {
 		myJwt,
 	)
 	if err != nil {
-		l.Fatal("💥💥 error creating authenticator: %v", err)
+		l.Error("💥💥 error creating authenticator", "error", err)
+		os.Exit(1)
 	}
 
 	server, err := goHttpEcho.CreateNewServerFromEnv(
@@ -134,7 +135,8 @@ func main() {
 		},
 	)
 	if err != nil {
-		l.Fatal("💥💥 error creating server: %v", err)
+		l.Error("💥💥 error creating server", "error", err)
+		os.Exit(1)
 	}
 
 	e := server.GetEcho()
@@ -148,6 +150,6 @@ func main() {
 	r.GET(jwtStatusUrl, yourService.restricted)
 	err = server.StartServer()
 	if err != nil {
-		l.Fatal("💥💥 error doing server.StartServer error: %v'\n", err)
+		log.Fatalf("💥💥 error doing server.StartServer error: %v'\n", err)
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,13 +15,12 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/config"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 )
 
 // Server is a struct type to store information related to all handlers of web server
 type Server struct {
 	listenAddress string
-	logger        golog.MyLogger
+	logger        *slog.Logger
 	e             *echo.Echo
 	r             *echo.Group // // Restricted group
 	router        *http.ServeMux
@@ -37,7 +36,7 @@ type Config struct {
 	Authenticator Authentication
 	JwtCheck      JwtChecker
 	VersionReader VersionReader
-	Logger        golog.MyLogger
+	Logger        *slog.Logger
 	WebRootDir    string
 	Content       embed.FS
 	RestrictedUrl string
@@ -57,7 +56,7 @@ func NewGoHttpServer(serverConfig *Config) *Server {
 	e := echo.New()
 	e.HideBanner = true
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
-		l.Debug("in customHTTPErrorHandler got error: %v", err)
+		l.Debug("in customHTTPErrorHandler got error", "error", err)
 		code := http.StatusInternalServerError
 		var he *echo.HTTPError
 		if errors.As(err, &he) {
@@ -75,7 +74,7 @@ func NewGoHttpServer(serverConfig *Config) *Server {
 		return func(c echo.Context) error {
 			err := next(c)
 			if err != nil && errors.Is(err, os.ErrNotExist) {
-				l.Warn("Static file not found: %v, path: %s", err, c.Request().URL.Path)
+				l.Warn("Static file not found", "error", err, "path", c.Request().URL.Path)
 				return c.JSON(http.StatusNotFound, GetStandardResponse("error", "File not found", false, nil, "Requested resource not found"))
 			}
 			return err
@@ -86,12 +85,8 @@ func NewGoHttpServer(serverConfig *Config) *Server {
 	r := e.Group(restrictedUrl)
 	r.Use(JwtCheck.JwtMiddleware)
 
-	var defaultHttpLogger *log.Logger
-	defaultHttpLogger, err := l.GetDefaultLogger()
-	if err != nil {
-		// in case we cannot get a valid logger.Logger for http let's create a reasonable one
-		defaultHttpLogger = log.New(os.Stderr, "NewGoHttpServer::defaultHttpLogger", log.Ldate|log.Ltime|log.Lshortfile)
-	}
+	// Create a standard logger for http.Server from slog
+	defaultHttpLogger := slog.NewLogLogger(l.Handler(), slog.LevelInfo)
 
 	myServer := Server{
 		listenAddress: listenAddress,
@@ -168,7 +163,7 @@ func (s *Server) GetListenAddress() string {
 }
 
 // GetLog returns the log of this web server
-func (s *Server) GetLog() golog.MyLogger {
+func (s *Server) GetLog() *slog.Logger {
 	return s.logger
 }
 
@@ -186,13 +181,14 @@ func (s *Server) GetJwtChecker() JwtChecker {
 func (s *Server) StartServer() error {
 	// Starting the web server in his own goroutine
 	go func() {
-		s.logger.Info("starting http server listening at %s://%s/", defaultProtocol, s.listenAddress)
+		s.logger.Info("starting http server", "protocol", defaultProtocol, "address", s.listenAddress)
 		err := s.e.StartServer(&s.httpServer)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			s.logger.Fatal("💥💥 error starting server on %q. error: %s", s.listenAddress, err)
+			s.logger.Error("💥💥 error starting server", "address", s.listenAddress, "error", err)
+			os.Exit(1)
 		}
 	}()
-	s.logger.Debug("Server listening on : %s PID:[%d]", s.httpServer.Addr, os.Getpid())
+	s.logger.Debug("Server listening", "addr", s.httpServer.Addr, "pid", os.Getpid())
 
 	// Graceful Shutdown on SIGINT (interrupt)
 	waitForShutdownToExit(&s.httpServer, secondsShutDownTimeout)
@@ -223,8 +219,8 @@ func waitForShutdownToExit(srv *http.Server, secondsToWait time.Duration) {
 	os.Exit(0)
 }
 
-func TraceHttpRequest(handlerName string, r *http.Request, l golog.MyLogger) {
+func TraceHttpRequest(handlerName string, r *http.Request, l *slog.Logger) {
 	remoteIp := r.RemoteAddr // ip address of the original request or the last proxy
 	requestedUrlPath := r.URL.Path
-	l.Info("TraceHttp➡️ [%s] %s %s, %s", handlerName, r.Method, requestedUrlPath, remoteIp)
+	l.Info("TraceHttp➡️", "handler", handlerName, "method", r.Method, "path", requestedUrlPath, "remoteIp", remoteIp)
 }

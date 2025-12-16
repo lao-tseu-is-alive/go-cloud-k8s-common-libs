@@ -2,6 +2,7 @@ package info
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strconv"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/gohttpclient"
-	"github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/pkg/golog"
 )
 
 type K8sInfo struct {
@@ -70,7 +70,7 @@ func GetKubernetesApiUrlFromEnv() (string, error) {
 // K8sInfo.CurrentNamespace contains the current namespace of the running pod
 // K8sInfo.Token contains the bearer authentication token for the running k8s instance in which this pods lives
 // K8sInfo.CaCert contains the certificate of the running k8s instance in which this pods lives
-func GetKubernetesConnInfo(l golog.MyLogger, defaultReadTimeout time.Duration) (*K8sInfo, ErrorConfig) {
+func GetKubernetesConnInfo(l *slog.Logger, defaultReadTimeout time.Duration) (*K8sInfo, ErrorConfig) {
 	const K8sServiceAccountPath = "/var/run/secrets/kubernetes.io/serviceaccount"
 	K8sNamespacePath := fmt.Sprintf("%s/namespace", K8sServiceAccountPath)
 	K8sTokenPath := fmt.Sprintf("%s/token", K8sServiceAccountPath)
@@ -121,13 +121,13 @@ func GetKubernetesConnInfo(l golog.MyLogger, defaultReadTimeout time.Duration) (
 	res, err := gohttpclient.GetJsonFromUrlWithBearerAuth(urlVersion, info.Token, K8sCaCert, false, defaultReadTimeout, l)
 	if err != nil {
 
-		l.Info("GetKubernetesConnInfo: error in GetJsonFromUrl(url:%s) err:%v", urlVersion, err)
+		l.Info("GetKubernetesConnInfo error in GetJsonFromUrl", "url", urlVersion, "error", err)
 		//return &info, ErrorConfig{
 		//	Err: Err,
 		//	Msg: fmt.Sprintf("GetKubernetesConnInfo: error doing GetJsonFromUrl(url:%s)", urlVersion),
 		//}
 	} else {
-		l.Info("GetKubernetesConnInfo: successfully returned from GetJsonFromUrl(url:%s)", urlVersion)
+		l.Info("GetKubernetesConnInfo successfully returned from GetJsonFromUrl", "url", urlVersion)
 		var myVersionRegex = regexp.MustCompile("{\"title\":\"(?P<title>.+)\",\"version\":\"(?P<version>.+)\"}")
 		match := myVersionRegex.FindStringSubmatch(strings.TrimSpace(res[:150]))
 		k8sVersionFields := make(map[string]string)
