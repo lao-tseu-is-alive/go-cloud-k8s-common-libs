@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"runtime"
+	"sync"
 )
 
 // Define ANSI color codes
@@ -25,6 +26,7 @@ type ColoredHandler struct {
 	level  slog.Level
 	attrs  []slog.Attr
 	groups []string
+	mu     *sync.Mutex
 }
 
 // NewColoredHandler creates a handler with colored output for development.
@@ -33,7 +35,7 @@ func NewColoredHandler(out io.Writer, opts *slog.HandlerOptions) *ColoredHandler
 	if opts != nil && opts.Level != nil {
 		level = opts.Level.Level()
 	}
-	return &ColoredHandler{out: out, level: level}
+	return &ColoredHandler{out: out, level: level, mu: &sync.Mutex{}}
 }
 
 func (h *ColoredHandler) Enabled(_ context.Context, level slog.Level) bool {
@@ -41,6 +43,9 @@ func (h *ColoredHandler) Enabled(_ context.Context, level slog.Level) bool {
 }
 
 func (h *ColoredHandler) Handle(_ context.Context, r slog.Record) error {
+	// Acquire lock before writing anything
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	// Pick color and prefix based on level
 	var color, levelStr string
 	switch {
@@ -107,6 +112,7 @@ func (h *ColoredHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		level:  h.level,
 		attrs:  newAttrs,
 		groups: h.groups,
+		mu:     h.mu,
 	}
 }
 
@@ -122,6 +128,7 @@ func (h *ColoredHandler) WithGroup(name string) slog.Handler {
 		level:  h.level,
 		attrs:  h.attrs,
 		groups: newGroups,
+		mu:     h.mu,
 	}
 }
 

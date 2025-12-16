@@ -278,7 +278,7 @@ func main() {
 	}
 
 	e := server.GetEcho()
-	e.Use(middleware.Logger()) // Automatically logs requests
+	e.Use(middleware.RequestLogger()) // Automatically logs requests
 	e.GET("/readiness", server.GetReadinessHandler(func(info string) bool {
 		ver, err := db.GetVersion(context.Background())
 		if err != nil {
