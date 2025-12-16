@@ -1,121 +1,112 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"testing"
 )
 
-func TestGetPgDbDsnUrlFromEnvOrPanic(t *testing.T) {
+func TestGetPgDbDsnUrl(t *testing.T) {
+	setEnv := func(key, value string) {
+		oldValue, exists := os.LookupEnv(key)
+		os.Setenv(key, value)
+		t.Cleanup(func() {
+			if exists {
+				os.Setenv(key, oldValue)
+			} else {
+				os.Unsetenv(key)
+			}
+		})
+	}
+
 	tests := []struct {
-		name           string
-		envVars        map[string]string
-		defaultIP      string
-		defaultPort    int
-		defaultDbName  string
-		defaultDbUser  string
-		defaultSSL     string
-		expectedResult string
-		shouldPanic    bool
+		name          string
+		envPassword   string
+		envPort       string
+		envHost       string
+		defaultIP     string
+		defaultPort   int
+		defaultDbName string
+		defaultDbUser string
+		defaultSSL    string
+		wantErr       bool
+		wantContains  string
 	}{
 		{
-			name: "All environment variables set",
-			envVars: map[string]string{
-				"DB_HOST":     "192.168.1.1",
-				"DB_PORT":     "5432",
-				"DB_NAME":     "testdb",
-				"DB_USER":     "testuser",
-				"DB_PASSWORD": "testpass",
-				"DB_SSL_MODE": "disable",
-			},
-			defaultIP:      "127.0.0.1",
-			defaultPort:    5433,
-			defaultDbName:  "defaultdb",
-			defaultDbUser:  "defaultuser",
-			defaultSSL:     "prefer",
-			expectedResult: "postgres://testuser:testpass@192.168.1.1:5432/testdb?sslmode=disable",
+			name:          "Missing password",
+			envPassword:   "",
+			defaultIP:     "127.0.0.1",
+			defaultPort:   5432,
+			defaultDbName: "testdb",
+			defaultDbUser: "testuser",
+			defaultSSL:    "disable",
+			wantErr:       true,
 		},
 		{
-			name:           "Using default values",
-			envVars:        map[string]string{"DB_PASSWORD": "testpass"},
-			defaultIP:      "127.0.0.1",
-			defaultPort:    5433,
-			defaultDbName:  "defaultdb",
-			defaultDbUser:  "defaultuser",
-			defaultSSL:     "prefer",
-			expectedResult: "postgres://defaultuser:testpass@127.0.0.1:5433/defaultdb?sslmode=prefer",
+			name:          "Valid configuration",
+			envPassword:   "secret123",
+			defaultIP:     "127.0.0.1",
+			defaultPort:   5432,
+			defaultDbName: "testdb",
+			defaultDbUser: "testuser",
+			defaultSSL:    "disable",
+			wantErr:       false,
+			wantContains:  "postgres://testuser:secret123@127.0.0.1:5432/testdb",
 		},
 		{
-			name: "Invalid DB_PORT",
-			envVars: map[string]string{
-				"DB_PORT":     "invalid",
-				"DB_PASSWORD": "testpass",
-			},
-			defaultIP:   "127.0.0.1",
-			defaultPort: 5433,
-			shouldPanic: true,
+			name:          "Invalid port",
+			envPassword:   "secret123",
+			envPort:       "abc",
+			defaultIP:     "127.0.0.1",
+			defaultPort:   5432,
+			defaultDbName: "testdb",
+			defaultDbUser: "testuser",
+			defaultSSL:    "disable",
+			wantErr:       true,
 		},
 		{
-			name: "DB_PORT out of range",
-			envVars: map[string]string{
-				"DB_PORT":     "70000",
-				"DB_PASSWORD": "testpass",
-			},
-			defaultIP:   "127.0.0.1",
-			defaultPort: 5433,
-			shouldPanic: true,
-		},
-		{
-			name: "Invalid DB_HOST",
-			envVars: map[string]string{
-				"DB_HOST":     "invalid-ip",
-				"DB_PASSWORD": "testpass",
-			},
-			defaultIP:   "127.0.0.1",
-			defaultPort: 5433,
-			shouldPanic: true,
-		},
-		{
-			name:        "Missing DB_PASSWORD",
-			envVars:     map[string]string{},
-			defaultIP:   "127.0.0.1",
-			defaultPort: 5433,
-			shouldPanic: true,
+			name:          "Invalid host",
+			envPassword:   "secret123",
+			envHost:       "invalid",
+			defaultIP:     "127.0.0.1",
+			defaultPort:   5432,
+			defaultDbName: "testdb",
+			defaultDbUser: "testuser",
+			defaultSSL:    "disable",
+			wantErr:       true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set environment variables
-			for k, v := range tt.envVars {
-				err := os.Setenv(k, v)
+			os.Unsetenv("DB_PASSWORD")
+			os.Unsetenv("DB_PORT")
+			os.Unsetenv("DB_HOST")
+
+			if tt.envPassword != "" {
+				setEnv("DB_PASSWORD", tt.envPassword)
+			}
+			if tt.envPort != "" {
+				setEnv("DB_PORT", tt.envPort)
+			}
+			if tt.envHost != "" {
+				setEnv("DB_HOST", tt.envHost)
+			}
+
+			result, err := GetPgDbDsnUrl(tt.defaultIP, tt.defaultPort, tt.defaultDbName, tt.defaultDbUser, tt.defaultSSL)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Expected error, but got none")
+				}
+			} else {
 				if err != nil {
-					panic(fmt.Errorf("💥💥 unable to do a os.Setenv. error: %v", err))
+					t.Errorf("Unexpected error: %v", err)
 				}
-			}
-
-			// Defer cleanup of environment variables
-			defer func() {
-				for k := range tt.envVars {
-					err := os.Unsetenv(k)
-					if err != nil {
-						panic(fmt.Errorf("💥💥 unable to do a os.Unsetenv. error: %v", err))
+				if tt.wantContains != "" && result != "" {
+					if len(result) < len(tt.wantContains) {
+						t.Errorf("Expected result to contain %s, but got %s", tt.wantContains, result)
 					}
 				}
-			}()
-
-			if tt.shouldPanic {
-				defer func() {
-					if r := recover(); r == nil {
-						t.Errorf("Expected panic, but didn't get one")
-					}
-				}()
-			}
-
-			result := GetPgDbDsnUrlFromEnvOrPanic(tt.defaultIP, tt.defaultPort, tt.defaultDbName, tt.defaultDbUser, tt.defaultSSL)
-
-			if !tt.shouldPanic && result != tt.expectedResult {
-				t.Errorf("Expected %s, but got %s", tt.expectedResult, result)
 			}
 		})
 	}

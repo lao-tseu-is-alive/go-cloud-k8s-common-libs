@@ -12,6 +12,7 @@ import (
 var (
 	ErrNoRecordFound     = errors.New("record not found")
 	ErrCouldNotBeCreated = errors.New("could not be created in DB")
+	ErrDBNotAvailable    = errors.New("DB connection is not available")
 )
 
 // DB is the interface for a simple table store.

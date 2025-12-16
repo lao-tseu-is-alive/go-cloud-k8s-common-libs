@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/mail"
 	"os"
@@ -13,107 +14,104 @@ const minUserNameLength = 5
 const minUserEmailLength = 12
 const minUserPasswordLength = 8
 
-// GetAdminUserFromEnvOrPanic returns the admin user to be used with JWT authentication from the content of the env variable :
-// ADMIN_USER : string containing the username to use for the administrative account
-func GetAdminUserFromEnvOrPanic(defaultAdminUser string) string {
+var (
+	ErrAdminUserTooShort       = errors.New("ADMIN_USER is too short")
+	ErrAdminEmailTooShort      = errors.New("ADMIN_EMAIL is too short")
+	ErrAdminEmailInvalid       = errors.New("ADMIN_EMAIL must be a valid email address")
+	ErrAdminEmailSpecialChar   = errors.New("ADMIN_EMAIL contains invalid special characters")
+	ErrAdminIdInvalid          = errors.New("ADMIN_ID must be a valid integer")
+	ErrAdminExternalIdInvalid  = errors.New("ADMIN_EXTERNAL_ID must be a valid integer")
+	ErrAdminPasswordMissing    = errors.New("ENV ADMIN_PASSWORD is required")
+	ErrAdminPasswordTooShort   = errors.New("ADMIN_PASSWORD is too short")
+	ErrAdminPasswordNotComplex = errors.New("ADMIN_PASSWORD must contain lowercase, uppercase, digit, and special character. No whitespace, #, |, or '")
+)
+
+// GetAdminUser returns the admin user from environment variable ADMIN_USER
+// Uses defaultAdminUser if env var is not set. Returns error if too short (minimum 5 characters)
+func GetAdminUser(defaultAdminUser string) (string, error) {
 	adminUser := defaultAdminUser
 	val, exist := os.LookupEnv("ADMIN_USER")
 	if exist {
 		adminUser = val
 	}
 	if utf8.RuneCountInString(adminUser) < minUserNameLength {
-		panic(fmt.Sprintf("💥💥 ERROR: CONFIG ENV ADMIN_USER should contain at least %d characters (got %d).",
-			minUserNameLength, utf8.RuneCountInString(val)))
+		return "", fmt.Errorf("%w: minimum %d characters, got %d", ErrAdminUserTooShort, minUserNameLength, utf8.RuneCountInString(adminUser))
 	}
-	return fmt.Sprintf("%s", adminUser)
+	return adminUser, nil
 }
 
-// GetAdminEmailFromEnvOrPanic returns the admin user to be used with JWT authentication from the content of the env variable :
-// ADMIN_EMAIL : string containing the username to use for the administrative account
-func GetAdminEmailFromEnvOrPanic(defaultAdminEmail string) string {
+// GetAdminEmail returns the admin email from environment variable ADMIN_EMAIL
+// Uses defaultAdminEmail if env var is not set. Returns error if invalid email format
+func GetAdminEmail(defaultAdminEmail string) (string, error) {
 	adminEmail := defaultAdminEmail
 	val, exist := os.LookupEnv("ADMIN_EMAIL")
 	if exist {
 		adminEmail = val
 	}
 	if utf8.RuneCountInString(adminEmail) < minUserEmailLength {
-		panic(fmt.Sprintf("💥💥 ERROR: CONFIG ENV ADMIN_EMAIL should contain at least %d characters (got %d).",
-			minUserEmailLength, utf8.RuneCountInString(val)))
+		return "", fmt.Errorf("%w: minimum %d characters, got %d", ErrAdminEmailTooShort, minUserEmailLength, utf8.RuneCountInString(adminEmail))
 	}
 	_, err := mail.ParseAddress(adminEmail)
 	if err != nil {
-		panic(fmt.Sprintf("💥💥 ERROR: CONFIG ENV ADMIN_EMAIL should be a valid email address."))
+		return "", ErrAdminEmailInvalid
 	}
-	hasSpecial := false
-	specialRune := '@'
 	for _, c := range adminEmail {
 		switch {
 		case c == '@' || c == '.' || c == '_' || c == '-':
-			break
+			continue
 		case unicode.IsPunct(c) || unicode.IsSymbol(c):
-			hasSpecial = true
-			specialRune = c
+			return "", fmt.Errorf("%w: '%c' is not allowed", ErrAdminEmailSpecialChar, c)
 		}
 	}
-	if hasSpecial {
-		panic(fmt.Sprintf("💥💥 ERROR: CONFIG ENV ADMIN_EMAIL should not contain special character except @ - _.'%v' is not valid", specialRune))
-	}
-	return fmt.Sprintf("%s", adminEmail)
+	return adminEmail, nil
 }
 
-// GetAdminIdFromEnvOrPanic returns the admin user id to be used with JWT authentication from the content of the env variable
-// ADMIN_ID : string containing the user id to use for the administrative account
-func GetAdminIdFromEnvOrPanic(defaultAdminId int) int {
-	adminId := defaultAdminId
-	var err error
+// GetAdminId returns the admin user ID from environment variable ADMIN_ID
+// Uses defaultAdminId if env var is not set. Returns error if not a valid integer
+func GetAdminId(defaultAdminId int) (int, error) {
 	val, exist := os.LookupEnv("ADMIN_ID")
-	if exist {
-		adminId, err = strconv.Atoi(val)
-		if err != nil {
-			panic(fmt.Errorf("💥💥 ERROR: ENV ADMIN_ID should contain a valid integer. %v", err))
-		}
-	}
-	return adminId
-}
-
-// GetAdminExternalIdFromEnvOrPanic returns the admin user id to be used with JWT authentication from the content of the env variable
-// ADMIN_EXTERNAL_ID : string containing the external user id to use for the administrative account
-func GetAdminExternalIdFromEnvOrPanic(defaultAdminExternalId int) int {
-	adminId := defaultAdminExternalId
-	var err error
-	val, exist := os.LookupEnv("ADMIN_EXTERNAL_ID")
-	if exist {
-		adminId, err = strconv.Atoi(val)
-		if err != nil {
-			panic(fmt.Errorf("💥💥 ERROR: ENV ADMIN_EXTERNAL_ID should contain a valid integer. %v", err))
-		}
-	}
-	return adminId
-}
-
-// GetAdminPasswordFromEnvOrPanic returns the admin password to be used with JWT authentication from the content of the env variable :
-//
-//	ADMIN_PASSWORD : string containing the password to use for the administrative account
-func GetAdminPasswordFromEnvOrPanic() string {
-	adminPassword := ""
-	val, exist :=
-		os.LookupEnv("ADMIN_PASSWORD")
 	if !exist {
-		panic("💥💥 ERROR: ENV ADMIN_PASSWORD should contain your JWT secret.")
+		return defaultAdminId, nil
 	}
-	adminPassword = val
-	if utf8.RuneCountInString(adminPassword) < minUserPasswordLength {
-		panic(fmt.Sprintf("💥💥 ERROR: CONFIG ENV ADMIN_PASSWORD should contain at least %d characters (got %d).",
-			minUserPasswordLength, utf8.RuneCountInString(val)))
+	adminId, err := strconv.Atoi(val)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrAdminIdInvalid, err)
 	}
-	if !VerifyPasswordComplexity(adminPassword) {
-		panic(fmt.Sprintf("💥💥 ERROR: CONFIG ENV ADMIN_PASSWORD should contain at least one lowercase letter, one uppercase letter, one digit and one special	character. No white space, #, or | or ' character in it."))
+	return adminId, nil
+}
+
+// GetAdminExternalId returns the admin external ID from environment variable ADMIN_EXTERNAL_ID
+// Uses defaultAdminExternalId if env var is not set. Returns error if not a valid integer
+func GetAdminExternalId(defaultAdminExternalId int) (int, error) {
+	val, exist := os.LookupEnv("ADMIN_EXTERNAL_ID")
+	if !exist {
+		return defaultAdminExternalId, nil
 	}
-	return fmt.Sprintf("%s", adminPassword)
+	adminId, err := strconv.Atoi(val)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrAdminExternalIdInvalid, err)
+	}
+	return adminId, nil
+}
+
+// GetAdminPassword returns the admin password from environment variable ADMIN_PASSWORD
+// Returns error if not set, too short, or doesn't meet complexity requirements
+func GetAdminPassword() (string, error) {
+	val, exist := os.LookupEnv("ADMIN_PASSWORD")
+	if !exist {
+		return "", ErrAdminPasswordMissing
+	}
+	if utf8.RuneCountInString(val) < minUserPasswordLength {
+		return "", fmt.Errorf("%w: minimum %d characters, got %d", ErrAdminPasswordTooShort, minUserPasswordLength, utf8.RuneCountInString(val))
+	}
+	if !VerifyPasswordComplexity(val) {
+		return "", ErrAdminPasswordNotComplex
+	}
+	return val, nil
 }
 
 // VerifyPasswordComplexity checks if the password meets the minimum requirements of complexity
-// At least one lowercase letter,one uppercase letter, one digit and one special character
+// At least one lowercase letter, one uppercase letter, one digit and one special character
 // No white space, #, or | or ' character in it
 func VerifyPasswordComplexity(s string) bool {
 	var hasNumber, hasUpperCase, hasLowercase, hasSpecial bool

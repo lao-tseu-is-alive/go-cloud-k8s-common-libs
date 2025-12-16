@@ -98,6 +98,7 @@ const (
 	APP                 = "goCloudK8sCommonLibsDemoServer"
 	defaultPort         = 8080
 	defaultJwtStatusUrl = "/status"
+	restrictedUrl       = "/api/v1"
 	defaultWebRootDir   = "web/"
 	defaultAdminUser    = "goadmin"
 	defaultAdminEmail   = "goadmin@yourdomain.org"
@@ -111,51 +112,42 @@ var content embed.FS
 
 type Service struct {
 	Logger golog.MyLogger
-	//Store       Storage
-	//dbConn database.DB
 	server *goHttpEcho.Server
 }
 
 // login is just a trivial stupid example to test this server
-// you should use the jwt token returned from LoginUser  in github.com/lao-tseu-is-alive/go-cloud-k8s-user-group'
-// and share the same secret with the above component
 func (s Service) login(ctx echo.Context) error {
 	goHttpEcho.TraceHttpRequest("login", ctx.Request(), s.Logger)
 	login := ctx.FormValue("login")
 	passwordHash := ctx.FormValue("hashed")
 	s.Logger.Debug("login: %s, hash: %s ", login, passwordHash)
-	// maybe it was not a form but a fetch data post
 	if len(strings.Trim(login, " ")) < 1 {
 		return ctx.JSON(http.StatusUnauthorized, "invalid credentials")
 	}
 
-	if s.server.Authenticator.AuthenticateUser(login, passwordHash) {
-		userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(login)
+	requestCtx := ctx.Request().Context()
+	if s.server.Authenticator.AuthenticateUser(requestCtx, login, passwordHash) {
+		userInfo, err := s.server.Authenticator.GetUserInfoFromLogin(requestCtx, login)
 		if err != nil {
-			errGetUInfFromLogin := fmt.Sprintf("Error getting user info from login: %v", err)
-			s.Logger.Error(errGetUInfFromLogin)
-			return ctx.JSON(http.StatusInternalServerError, errGetUInfFromLogin)
+			errMsg := fmt.Sprintf("Error getting user info from login: %v", err)
+			s.Logger.Error(errMsg)
+			return ctx.JSON(http.StatusInternalServerError, errMsg)
 		}
 		token, err := s.server.JwtCheck.GetTokenFromUserInfo(userInfo)
 		if err != nil {
-			errGetUInfFromLogin := fmt.Sprintf("Error getting jwt token from user info: %v", err)
-			s.Logger.Error(errGetUInfFromLogin)
-			return ctx.JSON(http.StatusInternalServerError, errGetUInfFromLogin)
+			errMsg := fmt.Sprintf("Error getting jwt token from user info: %v", err)
+			s.Logger.Error(errMsg)
+			return ctx.JSON(http.StatusInternalServerError, errMsg)
 		}
-		// Prepare the response
-		response := map[string]string{
-			"token": token.String(),
-		}
+		response := map[string]string{"token": token.String()}
 		s.Logger.Info("LoginUser(%s) successful login", login)
 		return ctx.JSON(http.StatusOK, response)
-	} else {
-		return ctx.JSON(http.StatusUnauthorized, "username not found or password invalid")
 	}
+	return ctx.JSON(http.StatusUnauthorized, "username not found or password invalid")
 }
 
 func (s Service) restricted(ctx echo.Context) error {
 	goHttpEcho.TraceHttpRequest("restricted", ctx.Request(), s.Logger)
-	// get the current user from JWT TOKEN
 	claims := s.server.JwtCheck.GetJwtCustomClaimsFromContext(ctx)
 	currentUserId := claims.User.UserId
 	s.Logger.Info("in restricted : currentUserId: %d", currentUserId)
@@ -170,8 +162,11 @@ func main() {
 	l.Info("🚀🚀 Starting:'%s', v%s, rev:%s, build:%v from: %s", APP, version.VERSION, version.REVISION, version.BuildStamp, version.REPOSITORY)
 
 	// Get the ENV JWT_AUTH_URL value
-	jwtAuthUrl := config.GetJwtAuthUrlFromEnvOrPanic()
-	jwtStatusUrl := config.GetJwtStatusUrlFromEnv(defaultJwtStatusUrl)
+	jwtAuthUrl, err := config.GetJwtAuthUrl()
+	if err != nil {
+		l.Fatal("💥💥 error getting JWT auth URL: %v", err)
+	}
+	jwtStatusUrl := config.GetJwtStatusUrl(defaultJwtStatusUrl)
 
 	myVersionReader := goHttpEcho.NewSimpleVersionReader(
 		APP,
@@ -182,31 +177,30 @@ func main() {
 		jwtAuthUrl,
 		jwtStatusUrl,
 	)
-	// Create a new JWT checker
-	myJwt := goHttpEcho.NewJwtChecker(
-		config.GetJwtSecretFromEnvOrPanic(),
-		config.GetJwtIssuerFromEnvOrPanic(),
-		APP,
-		config.GetJwtContextKeyFromEnvOrPanic(),
-		config.GetJwtDurationFromEnvOrPanic(60),
-		l)
-	// Create a new Authenticator with a simple admin user
-	myAuthenticator := goHttpEcho.NewSimpleAdminAuthenticator(&goHttpEcho.UserInfo{
-		UserId:     config.GetAdminIdFromEnvOrPanic(defaultAdminId),
-		ExternalId: config.GetAdminExternalIdFromEnvOrPanic(9999999),
-		Name:       "NewSimpleAdminAuthenticator_Admin",
-		Email:      config.GetAdminEmailFromEnvOrPanic(defaultAdminEmail),
-		Login:      config.GetAdminUserFromEnvOrPanic(defaultAdminUser),
-		IsAdmin:    false,
-		Groups:     []int{1}, // this is the group id of the global_admin group
-	},
 
-		config.GetAdminPasswordFromEnvOrPanic(),
-		myJwt)
+	// Create a new JWT checker using factory function
+	myJwt, err := goHttpEcho.GetNewJwtCheckerFromConfig(APP, 60, l)
+	if err != nil {
+		l.Fatal("💥💥 error creating JWT checker: %v", err)
+	}
 
-	server := goHttpEcho.CreateNewServerFromEnvOrFail(
+	// Create a new Authenticator using factory function
+	myAuthenticator, err := goHttpEcho.GetSimpleAdminAuthenticatorFromConfig(
+		goHttpEcho.AdminDefaults{
+			UserId:     defaultAdminId,
+			ExternalId: 9999999,
+			Login:      defaultAdminUser,
+			Email:      defaultAdminEmail,
+		},
+		myJwt,
+	)
+	if err != nil {
+		l.Fatal("💥💥 error creating authenticator: %v", err)
+	}
+
+	server, err := goHttpEcho.CreateNewServerFromEnv(
 		defaultPort,
-		"0.0.0.0", // defaultServerIp,
+		"0.0.0.0",
 		&goHttpEcho.Config{
 			ListenAddress: "",
 			Authenticator: myAuthenticator,
@@ -215,12 +209,14 @@ func main() {
 			Logger:        l,
 			WebRootDir:    defaultWebRootDir,
 			Content:       content,
-			RestrictedUrl: "/api/v1",
+			RestrictedUrl: restrictedUrl,
 		},
 	)
+	if err != nil {
+		l.Fatal("💥💥 error creating server: %v", err)
+	}
 
 	e := server.GetEcho()
-
 	e.GET("/goAppInfo", server.GetAppInfoHandler())
 	yourService := Service{
 		Logger: l,

@@ -115,10 +115,17 @@ func NewGoHttpServer(serverConfig *Config) *Server {
 	return &myServer
 }
 
-// CreateNewServerFromEnvOrFail creates a new server from environment variables or fails
-func CreateNewServerFromEnvOrFail(defaultPort int, defaultServerIp string, srvConfig *Config) *Server {
-	listenPort := config.GetPortFromEnvOrPanic(defaultPort)
-	listenIP := config.GetListenIpFromEnvOrPanic(defaultServerIp)
+// CreateNewServerFromEnv creates a new server from environment variables
+// Returns error if port or IP configuration is invalid
+func CreateNewServerFromEnv(defaultPort int, defaultServerIp string, srvConfig *Config) (*Server, error) {
+	listenPort, err := config.GetPort(defaultPort)
+	if err != nil {
+		return nil, err
+	}
+	listenIP, err := config.GetListenIp(defaultServerIp)
+	if err != nil {
+		return nil, err
+	}
 	listenAddr := fmt.Sprintf("%s:%d", listenIP, listenPort)
 
 	server := NewGoHttpServer(&Config{
@@ -131,8 +138,7 @@ func CreateNewServerFromEnvOrFail(defaultPort int, defaultServerIp string, srvCo
 		Content:       srvConfig.Content,
 		RestrictedUrl: srvConfig.RestrictedUrl,
 	})
-	return server
-
+	return server, nil
 }
 
 // GetEcho  returns a pointer to the Echo reference

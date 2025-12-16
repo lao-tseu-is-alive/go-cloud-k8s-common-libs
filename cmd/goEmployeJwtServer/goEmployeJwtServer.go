@@ -238,7 +238,10 @@ func main() {
 	}
 	l.Info("🚀🚀 Starting:'%s', v%s, rev:%s, build:%v from: %s", version.APP, version.VERSION, version.REVISION, version.BuildStamp, version.REPOSITORY)
 
-	dbDsn := config.GetPgDbDsnUrlFromEnvOrPanic(defaultDBIp, defaultDBPort, tools.ToSnakeCase(version.APP), version.AppSnake, defaultDBSslMode)
+	dbDsn, err := config.GetPgDbDsnUrl(defaultDBIp, defaultDBPort, tools.ToSnakeCase(version.APP), version.AppSnake, defaultDBSslMode)
+	if err != nil {
+		l.Fatal("💥💥 error getting database DSN: %v", err)
+	}
 	dbConnCtx, dbConnCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer dbConnCancel()
 	db, err := database.GetInstance(dbConnCtx, "pgx", dbDsn, runtime.NumCPU(), l)
@@ -265,8 +268,11 @@ func main() {
 	metadataService.SetServiceVersionOrFail(context.Background(), version.APP, version.VERSION)
 
 	// Get the ENV JWT_AUTH_URL value
-	jwtAuthUrl := config.GetJwtAuthUrlFromEnvOrPanic()
-	jwtStatusUrl := config.GetJwtStatusUrlFromEnv(defaultJwtStatusUrl)
+	jwtAuthUrl, err := config.GetJwtAuthUrl()
+	if err != nil {
+		l.Fatal("💥💥 error getting JWT auth URL: %v", err)
+	}
+	jwtStatusUrl := config.GetJwtStatusUrl(defaultJwtStatusUrl)
 
 	myVersionReader := goHttpEcho.NewSimpleVersionReader(
 		version.APP,
@@ -277,35 +283,60 @@ func main() {
 		jwtAuthUrl,
 		jwtStatusUrl,
 	)
-	// Create a new JWT checker
-	myJwt := goHttpEcho.NewJwtChecker(
-		config.GetJwtSecretFromEnvOrPanic(),
-		config.GetJwtIssuerFromEnvOrPanic(),
-		version.APP,
-		config.GetJwtContextKeyFromEnvOrPanic(),
-		config.GetJwtDurationFromEnvOrPanic(60),
-		l)
-	allowedHosts := config.GetAllowedHostsFromEnvOrPanic()
+
+	// Create a new JWT checker using factory function
+	myJwt, err := goHttpEcho.GetNewJwtCheckerFromConfig(version.APP, 60, l)
+	if err != nil {
+		l.Fatal("💥💥 error creating JWT checker: %v", err)
+	}
+
+	allowedHosts, err := config.GetAllowedHosts()
+	if err != nil {
+		l.Fatal("💥💥 error getting allowed hosts: %v", err)
+	}
 	myF5Store := f5.GetStorageInstanceOrPanic("pgx", db, l)
-	// Create a new Authenticator with a F5
+
+	// Get admin config
+	adminId, err := config.GetAdminId(defaultAdminId)
+	if err != nil {
+		l.Fatal("💥💥 error getting admin ID: %v", err)
+	}
+	adminExternalId, err := config.GetAdminExternalId(99999)
+	if err != nil {
+		l.Fatal("💥💥 error getting admin external ID: %v", err)
+	}
+	adminEmail, err := config.GetAdminEmail(defaultAdminEmail)
+	if err != nil {
+		l.Fatal("💥💥 error getting admin email: %v", err)
+	}
+	adminUser, err := config.GetAdminUser(defaultAdminUser)
+	if err != nil {
+		l.Fatal("💥💥 error getting admin user: %v", err)
+	}
+	adminPassword, err := config.GetAdminPassword()
+	if err != nil {
+		l.Fatal("💥💥 error getting admin password: %v", err)
+	}
+
+	// Create a new Authenticator with F5
 	myAuthenticator := f5.NewF5Authenticator(
 		&goHttpEcho.UserInfo{
-			UserId:     config.GetAdminIdFromEnvOrPanic(defaultAdminId),
-			ExternalId: config.GetAdminExternalIdFromEnvOrPanic(99999),
+			UserId:     adminId,
+			ExternalId: adminExternalId,
 			Name:       "NewSimpleAdminAuthenticator_Admin",
-			Email:      config.GetAdminEmailFromEnvOrPanic(defaultAdminEmail),
-			Login:      config.GetAdminUserFromEnvOrPanic(defaultAdminUser),
+			Email:      adminEmail,
+			Login:      adminUser,
 			IsAdmin:    false,
 			Groups:     []int{1}, // this is the group id of the global_admin group
 		},
-		config.GetAdminPasswordFromEnvOrPanic(),
+		adminPassword,
 		myJwt,
 		myF5Store,
 	)
 
-	server := goHttpEcho.CreateNewServerFromEnvOrFail(
+	server, err := goHttpEcho.CreateNewServerFromEnv(
 		defaultPort,
-		"0.0.0.0", // defaultServerIp,
+		"0.0.0.0",
 		&goHttpEcho.Config{
 			ListenAddress: "",
 			Authenticator: myAuthenticator,
@@ -317,7 +348,10 @@ func main() {
 			RestrictedUrl: defaultRestrictedUrlBasePath,
 		},
 	)
-	cookieNameForJWT := config.GetJwtCookieNameFromEnv(defaultJwtCookieName)
+	if err != nil {
+		l.Fatal("💥💥 error creating server: %v", err)
+	}
+	cookieNameForJWT := config.GetJwtCookieName(defaultJwtCookieName)
 	myF5Service := Service{
 		AllowedHostnames: allowedHosts,
 		Logger:           l,

@@ -153,19 +153,24 @@ func (s Service) helloHandler(c echo.Context) error {
 }
 
 func main() {
-	l, err := golog.NewLogger(
-		"simple", // can be "zap"
-		config.GetLogWriterFromEnvOrPanic(defaultLogName),
-		config.GetLogLevelFromEnvOrPanic(golog.InfoLevel),
-		APP,
-	)
-
+	logWriter, err := config.GetLogWriter(defaultLogName)
+	if err != nil {
+		log.Fatalf("💥💥 error getting log writer: %v'\n", err)
+	}
+	logLevel, err := config.GetLogLevel(golog.InfoLevel)
+	if err != nil {
+		log.Fatalf("💥💥 error getting log level: %v'\n", err)
+	}
+	l, err := golog.NewLogger("simple", logWriter, logLevel, APP)
 	if err != nil {
 		log.Fatalf("💥💥 error log.NewLogger error: %v'\n", err)
 	}
 	l.Info("🚀🚀 Starting:'%s', v%s, rev:%s, build:%v from: %s", APP, version.VERSION, version.REVISION, version.BuildStamp, version.REPOSITORY)
 
-	dbDsn := config.GetPgDbDsnUrlFromEnvOrPanic(defaultDBIp, defaultDBPort, tools.ToSnakeCase(version.APP), version.AppSnake, defaultDBSslMode)
+	dbDsn, err := config.GetPgDbDsnUrl(defaultDBIp, defaultDBPort, tools.ToSnakeCase(version.APP), version.AppSnake, defaultDBSslMode)
+	if err != nil {
+		l.Fatal("💥💥 error getting database DSN: %v", err)
+	}
 	dbConnCtx, dbConnCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer dbConnCancel()
 	db, err := database.GetInstance(dbConnCtx, "pgx", dbDsn, runtime.NumCPU(), l)
@@ -203,15 +208,17 @@ func main() {
 
 	err = m.Up()
 	if err != nil {
-		//if err == m.
 		if !errors.Is(err, migrate.ErrNoChange) {
 			l.Fatal("💥💥 error doing migrate.Up error: %v\n", err)
 		}
 	}
 
 	// Get the ENV JWT_AUTH_URL value
-	jwtAuthUrl := config.GetJwtAuthUrlFromEnvOrPanic()
-	jwtStatusUrl := config.GetJwtStatusUrlFromEnv(defaultJwtStatusUrl)
+	jwtAuthUrl, err := config.GetJwtAuthUrl()
+	if err != nil {
+		l.Fatal("💥💥 error getting JWT auth URL: %v", err)
+	}
+	jwtStatusUrl := config.GetJwtStatusUrl(defaultJwtStatusUrl)
 
 	myVersionReader := goHttpEcho.NewSimpleVersionReader(
 		APP,
@@ -222,31 +229,30 @@ func main() {
 		jwtAuthUrl,
 		jwtStatusUrl,
 	)
-	// Create a new JWT checker
-	myJwt := goHttpEcho.NewJwtChecker(
-		config.GetJwtSecretFromEnvOrPanic(),
-		config.GetJwtIssuerFromEnvOrPanic(),
-		APP,
-		config.GetJwtContextKeyFromEnvOrPanic(),
-		config.GetJwtDurationFromEnvOrPanic(60),
-		l)
-	// Create a new Authenticator with a simple admin user
-	myAuthenticator := goHttpEcho.NewSimpleAdminAuthenticator(&goHttpEcho.UserInfo{
-		UserId:     config.GetAdminIdFromEnvOrPanic(defaultAdminId),
-		ExternalId: config.GetAdminExternalIdFromEnvOrPanic(9999999),
-		Name:       "NewSimpleAdminAuthenticator_Admin",
-		Email:      config.GetAdminEmailFromEnvOrPanic(defaultAdminEmail),
-		Login:      config.GetAdminUserFromEnvOrPanic(defaultAdminUser),
-		IsAdmin:    false,
-		Groups:     []int{1}, // this is the group id of the global_admin group
-	},
 
-		config.GetAdminPasswordFromEnvOrPanic(),
-		myJwt)
+	// Create a new JWT checker using factory function
+	myJwt, err := goHttpEcho.GetNewJwtCheckerFromConfig(APP, 60, l)
+	if err != nil {
+		l.Fatal("💥💥 error creating JWT checker: %v", err)
+	}
 
-	server := goHttpEcho.CreateNewServerFromEnvOrFail(
+	// Create a new Authenticator using factory function
+	myAuthenticator, err := goHttpEcho.GetSimpleAdminAuthenticatorFromConfig(
+		goHttpEcho.AdminDefaults{
+			UserId:     defaultAdminId,
+			ExternalId: 9999999,
+			Login:      defaultAdminUser,
+			Email:      defaultAdminEmail,
+		},
+		myJwt,
+	)
+	if err != nil {
+		l.Fatal("💥💥 error creating authenticator: %v", err)
+	}
+
+	server, err := goHttpEcho.CreateNewServerFromEnv(
 		defaultPort,
-		"0.0.0.0", // defaultServerIp,
+		"0.0.0.0",
 		&goHttpEcho.Config{
 			ListenAddress: "",
 			Authenticator: myAuthenticator,
@@ -258,6 +264,9 @@ func main() {
 			RestrictedUrl: "/api/v1",
 		},
 	)
+	if err != nil {
+		l.Fatal("💥💥 error creating server: %v", err)
+	}
 
 	e := server.GetEcho()
 	e.Use(middleware.Logger()) // Automatically logs requests

@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -69,8 +68,7 @@ func (db *PgxDB) ExecActionQuery(ctx context.Context, sql string, arguments ...i
 }
 
 func (db *PgxDB) Insert(ctx context.Context, sql string, arguments ...interface{}) (lastInsertId int, err error) {
-	sql4PGX := fmt.Sprintf("%s RETURNING id;", sql)
-	err = db.Conn.QueryRow(ctx, sql4PGX, arguments...).Scan(&lastInsertId)
+	err = db.Conn.QueryRow(ctx, sql, arguments...).Scan(&lastInsertId) //let dev add "RETURNING id" if they need it
 	if err != nil {
 		db.log.Error(" Insert unexpectedly failed with %v: (%v), error : %v", sql, arguments, err)
 		return 0, err
@@ -129,11 +127,19 @@ func (db *PgxDB) GetVersion(ctx context.Context) (result string, err error) {
 }
 
 func (db *PgxDB) GetPGConn() (Conn *pgxpool.Pool, err error) {
-	dbVersion, err := db.GetVersion(context.Background())
-	if err != nil || len(dbVersion) < 2 {
-		return nil, errors.New("NOT CONNECTED TO DB")
+	if db.Conn != nil {
+		return db.Conn, nil
+	} else {
+		return nil, ErrDBNotAvailable
 	}
-	return db.Conn, nil
+}
+
+func (db *PgxDB) HealthCheck(ctx context.Context) (alive bool, err error) {
+	dbVersion, err := db.GetVersion(ctx)
+	if err != nil || len(dbVersion) < 2 {
+		return false, err
+	}
+	return true, nil
 }
 
 func (db *PgxDB) DoesTableExist(ctx context.Context, schema, table string) (exist bool) {

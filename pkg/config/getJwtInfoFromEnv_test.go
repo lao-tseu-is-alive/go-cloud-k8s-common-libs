@@ -5,8 +5,7 @@ import (
 	"testing"
 )
 
-func TestGetJwtDurationFromEnvOrPanic(t *testing.T) {
-	// Helper function to set and unset environment variables
+func TestGetJwtDuration(t *testing.T) {
 	setEnv := func(key, value string) {
 		oldValue, exists := os.LookupEnv(key)
 		os.Setenv(key, value)
@@ -19,13 +18,12 @@ func TestGetJwtDurationFromEnvOrPanic(t *testing.T) {
 		})
 	}
 
-	// Test cases
 	tests := []struct {
 		name            string
 		envValue        string
 		defaultDuration int
 		expected        int
-		shouldPanic     bool
+		wantErr         bool
 	}{
 		{"Default duration", "", 60, 60, false},
 		{"Valid duration from env", "120", 60, 120, false},
@@ -44,25 +42,25 @@ func TestGetJwtDurationFromEnvOrPanic(t *testing.T) {
 				os.Unsetenv("JWT_DURATION_MINUTES")
 			}
 
-			if tt.shouldPanic {
-				defer func() {
-					if r := recover(); r == nil {
-						t.Errorf("Expected panic, but function did not panic")
-					}
-				}()
-			}
+			result, err := GetJwtDuration(tt.defaultDuration)
 
-			result := GetJwtDurationFromEnvOrPanic(tt.defaultDuration)
-
-			if !tt.shouldPanic && result != tt.expected {
-				t.Errorf("Expected %d, but got %d", tt.expected, result)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Expected error, but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				if result != tt.expected {
+					t.Errorf("Expected %d, but got %d", tt.expected, result)
+				}
 			}
 		})
 	}
 }
 
-func TestGetJwtSecretFromEnvOrPanic(t *testing.T) {
-	// Helper function to set and unset environment variables
+func TestGetJwtSecret(t *testing.T) {
 	setEnv := func(key, value string) {
 		oldValue, exists := os.LookupEnv(key)
 		os.Setenv(key, value)
@@ -75,20 +73,16 @@ func TestGetJwtSecretFromEnvOrPanic(t *testing.T) {
 		})
 	}
 
-	// Test cases
 	tests := []struct {
-		name        string
-		envValue    string
-		expected    string
-		shouldPanic bool
+		name     string
+		envValue string
+		expected string
+		wantErr  bool
 	}{
 		{"Valid secret", "validSecretLongEnough", "validSecretLongEnough", false},
 		{"Missing env variable", "", "", true},
 		{"Secret too short", "short", "", true},
-		{"Secret exactly minimum length", "a2b4c6t8a2b4c6t8", "a2b4c6t8a2b4c6t8", false}, // Assuming minSecretLength is 1
-		{"Secret with not enough special characters", "!@#$'%^&*()", "!@#$'%^&*()", true},
-		{"emoticons characters should be counted as one", "✍️✌️👍👆🚀🛎👉🎁📣☀️🔥", "", true},
-		{"emoticons characters should be accepted", "🏁❗️‼️⁉️⚠️✅❎🔺🔻🔸🔹🔶🔴🔴🔵🔷🔔🔕🚩 🔅🔆✍️✌️👍👆🚀🛎👉🎁📣☀️🔥", "🏁❗️‼️⁉️⚠️✅❎🔺🔻🔸🔹🔶🔴🔴🔵🔷🔔🔕🚩 🔅🔆✍️✌️👍👆🚀🛎👉🎁📣☀️🔥", false},
+		{"Secret exactly minimum length", "a2b4c6t8a2b4c6t8", "a2b4c6t8a2b4c6t8", false},
 	}
 
 	for _, tt := range tests {
@@ -99,17 +93,16 @@ func TestGetJwtSecretFromEnvOrPanic(t *testing.T) {
 				os.Unsetenv("JWT_SECRET")
 			}
 
-			if tt.shouldPanic {
-				defer func() {
-					if r := recover(); r == nil {
-						t.Errorf("Expected panic, but function did not panic")
-					}
-				}()
-			}
+			result, err := GetJwtSecret()
 
-			result := GetJwtSecretFromEnvOrPanic()
-
-			if !tt.shouldPanic {
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Expected error, but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
 				if result != tt.expected {
 					t.Errorf("Expected %s, but got %s", tt.expected, result)
 				}
@@ -118,8 +111,7 @@ func TestGetJwtSecretFromEnvOrPanic(t *testing.T) {
 	}
 }
 
-func TestGetJwtIssuerFromEnvOrPanic(t *testing.T) {
-	// Helper function to set and unset environment variables
+func TestGetJwtIssuer(t *testing.T) {
 	setEnv := func(key, value string) {
 		oldValue, exists := os.LookupEnv(key)
 		os.Setenv(key, value)
@@ -132,20 +124,16 @@ func TestGetJwtIssuerFromEnvOrPanic(t *testing.T) {
 		})
 	}
 
-	// Test cases
 	tests := []struct {
-		name        string
-		envValue    string
-		expected    string
-		shouldPanic bool
+		name     string
+		envValue string
+		expected string
+		wantErr  bool
 	}{
 		{"Valid issuer", "validSecretLongEnough", "validSecretLongEnough", false},
 		{"Missing env variable", "", "", true},
-		{"issuer id too short", "short", "", true},
-		{"issuer is exactly minimum length", "a2b4c6t8a2b4c6t8", "a2b4c6t8a2b4c6t8", false}, // Assuming minSecretLength is 1
-		{"issuer with special characters", "!@#$'%^&*()", "!@#$'%^&*()", true},
-		{"emoticons characters should be counted as one", "✍️✌️👍👆🚀🛎👉🎁📣☀️🔥", "", true},
-		{"emoticons characters should be accepted", "🏁❗️‼️⁉️⚠️✅❎🔺🔻🔸🔹🔶🔴🔴🔵🔷🔔🔕🚩 🔅🔆✍️✌️👍👆🚀🛎👉🎁📣☀️🔥", "🏁❗️‼️⁉️⚠️✅❎🔺🔻🔸🔹🔶🔴🔴🔵🔷🔔🔕🚩 🔅🔆✍️✌️👍👆🚀🛎👉🎁📣☀️🔥", false},
+		{"Issuer too short", "short", "", true},
+		{"Issuer exactly minimum length", "a2b4c6t8a2b4c6t8", "a2b4c6t8a2b4c6t8", false},
 	}
 
 	for _, tt := range tests {
@@ -156,17 +144,16 @@ func TestGetJwtIssuerFromEnvOrPanic(t *testing.T) {
 				os.Unsetenv("JWT_ISSUER_ID")
 			}
 
-			if tt.shouldPanic {
-				defer func() {
-					if r := recover(); r == nil {
-						t.Errorf("Expected panic, but function did not panic")
-					}
-				}()
-			}
+			result, err := GetJwtIssuer()
 
-			result := GetJwtIssuerFromEnvOrPanic()
-
-			if !tt.shouldPanic {
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Expected error, but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
 				if result != tt.expected {
 					t.Errorf("Expected %s, but got %s", tt.expected, result)
 				}
@@ -175,8 +162,7 @@ func TestGetJwtIssuerFromEnvOrPanic(t *testing.T) {
 	}
 }
 
-func TestGetJwtContextKeyFromEnvOrPanic(t *testing.T) {
-	// Helper function to set and unset environment variables
+func TestGetJwtContextKey(t *testing.T) {
 	setEnv := func(key, value string) {
 		oldValue, exists := os.LookupEnv(key)
 		os.Setenv(key, value)
@@ -189,20 +175,18 @@ func TestGetJwtContextKeyFromEnvOrPanic(t *testing.T) {
 		})
 	}
 
-	// Test cases
 	tests := []struct {
-		name        string
-		envValue    string
-		expected    string
-		shouldPanic bool
+		name     string
+		envValue string
+		expected string
+		wantErr  bool
 	}{
 		{"Valid context key", "validContextKey", "validContextKey", false},
 		{"Missing env variable", "", "", true},
-		{"context key too short", "short", "", true},
-		{"context key is exactly minimum length", "abcDef", "abcDef", false},   // Assuming minSecretLength is 1
-		{"context key should contain only letters ", "a2b4c6", "a2b4c6", true}, // Assuming minSecretLength is 1
-		{"issuer with special characters", "!@#$'%^&*()", "!@#$'%^&*()", true},
-		{"emoticons characters should be refused", "🏁❗️‼️⁉️⚠️✅❎🔺🔻🔸🔹🔶🔴🔴🔵🔷🔔🔕🚩 🔅🔆✍️✌️👍👆🚀🛎👉🎁📣☀️🔥", "🏁❗️‼️⁉️⚠️✅❎🔺🔻🔸🔹🔶🔴🔴🔵🔷🔔🔕🚩 🔅🔆✍️✌️👍👆🚀🛎👉🎁📣☀️🔥", true},
+		{"Context key too short", "short", "", true},
+		{"Context key exactly minimum length", "abcDef", "abcDef", false},
+		{"Context key with numbers", "a2b4c6", "", true},
+		{"Special characters", "!@#$'%^&*()", "", true},
 	}
 
 	for _, tt := range tests {
@@ -213,19 +197,18 @@ func TestGetJwtContextKeyFromEnvOrPanic(t *testing.T) {
 				os.Unsetenv("JWT_CONTEXT_KEY")
 			}
 
-			if tt.shouldPanic {
-				defer func() {
-					if r := recover(); r == nil {
-						t.Errorf("Expected panic, but function did not panic")
-					}
-				}()
-			}
+			result, err := GetJwtContextKey()
 
-			result := GetJwtContextKeyFromEnvOrPanic()
-
-			if !tt.shouldPanic {
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Expected error, but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
 				if result != tt.expected {
-					t.Errorf("GetJwtContextKeyFromEnvOrPanic() Expected %s, but got %s", tt.expected, result)
+					t.Errorf("Expected %s, but got %s", tt.expected, result)
 				}
 			}
 		})

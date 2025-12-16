@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -13,104 +14,112 @@ const (
 	minContextKeyLength = 6
 )
 
-// GetJwtSecretFromEnvOrPanic returns a secret to be used with JWT based on the content of the env variable
-// JWT_SECRET : should exist and contain a string with your secret or this function will panic
-func GetJwtSecretFromEnvOrPanic() string {
+var (
+	ErrJwtSecretMissing      = errors.New("ENV JWT_SECRET is required")
+	ErrJwtSecretTooShort     = errors.New("ENV JWT_SECRET is too short")
+	ErrJwtIssuerMissing      = errors.New("ENV JWT_ISSUER_ID is required")
+	ErrJwtIssuerTooShort     = errors.New("ENV JWT_ISSUER_ID is too short")
+	ErrJwtContextKeyMissing  = errors.New("ENV JWT_CONTEXT_KEY is required")
+	ErrJwtContextKeyTooShort = errors.New("ENV JWT_CONTEXT_KEY is too short")
+	ErrJwtContextKeyInvalid  = errors.New("ENV JWT_CONTEXT_KEY must contain only letters (a-z, A-Z)")
+	ErrJwtAuthUrlMissing     = errors.New("ENV JWT_AUTH_URL is required")
+	ErrJwtAuthUrlInvalid     = errors.New("ENV JWT_AUTH_URL must be a valid URL")
+	ErrJwtDurationInvalid    = errors.New("ENV JWT_DURATION_MINUTES must be between 1 and 1440")
+)
+
+// GetJwtSecret returns the JWT secret from environment variable JWT_SECRET
+// Returns error if not set or too short (minimum 16 characters)
+func GetJwtSecret() (string, error) {
 	val, exist := os.LookupEnv("JWT_SECRET")
 	if !exist {
-		panic("💥💥 ERROR: ENV JWT_SECRET should contain your JWT secret.")
+		return "", ErrJwtSecretMissing
 	}
 	if utf8.RuneCountInString(val) < minSecretLength {
-		panic(fmt.Sprintf("💥💥 ERROR: CONFIG ENV JWT_SECRET should contain at least %d characters (got %d).",
-			minSecretLength, utf8.RuneCountInString(val)))
+		return "", fmt.Errorf("%w: minimum %d characters, got %d", ErrJwtSecretTooShort, minSecretLength, utf8.RuneCountInString(val))
 	}
-	return fmt.Sprintf("%s", val)
+	return val, nil
 }
 
-// GetJwtIssuerFromEnvOrPanic returns a secret to be used with JWT based on the content of the env variable
-// JWT_ISSUER_ID : should exist and contain a string with your secret or this function will panic
-func GetJwtIssuerFromEnvOrPanic() string {
+// GetJwtIssuer returns the JWT issuer from environment variable JWT_ISSUER_ID
+// Returns error if not set or too short (minimum 16 characters)
+func GetJwtIssuer() (string, error) {
 	val, exist := os.LookupEnv("JWT_ISSUER_ID")
 	if !exist {
-		panic("💥💥 ERROR: ENV JWT_ISSUER_ID should contain your JWT ISSUER ID secret.")
+		return "", ErrJwtIssuerMissing
 	}
 	if utf8.RuneCountInString(val) < minSecretLength {
-		panic(fmt.Sprintf("💥💥 ERROR: CONFIG ENV JWT_ISSUER_ID should contain at least %d characters (got %d).",
-			minSecretLength, utf8.RuneCountInString(val)))
+		return "", fmt.Errorf("%w: minimum %d characters, got %d", ErrJwtIssuerTooShort, minSecretLength, utf8.RuneCountInString(val))
 	}
-	return fmt.Sprintf("%s", val)
+	return val, nil
 }
 
-// GetJwtContextKeyFromEnvOrPanic returns a secret to be used with JWT based on the content of the env variable
-// JWT_CONTEXT_KEY : should exist and contain a string with your secret or this function will panic
-func GetJwtContextKeyFromEnvOrPanic() string {
+// GetJwtContextKey returns the JWT context key from environment variable JWT_CONTEXT_KEY
+// Returns error if not set, too short (minimum 6 characters), or contains non-letter characters
+func GetJwtContextKey() (string, error) {
 	val, exist := os.LookupEnv("JWT_CONTEXT_KEY")
 	if !exist {
-		panic("💥💥 ERROR: ENV JWT_CONTEXT_KEY should contain your JWT CONTEXT KEY.")
+		return "", ErrJwtContextKeyMissing
 	}
 	if utf8.RuneCountInString(val) < minContextKeyLength {
-		panic(fmt.Sprintf("💥💥 ERROR: CONFIG ENV JWT_CONTEXT_KEY should contain at least %d characters (got %d).",
-			minContextKeyLength, utf8.RuneCountInString(val)))
+		return "", fmt.Errorf("%w: minimum %d characters, got %d", ErrJwtContextKeyTooShort, minContextKeyLength, utf8.RuneCountInString(val))
 	}
-	// Check if the value contains only letters
 	match, _ := regexp.MatchString("^[a-zA-Z]+$", val)
 	if !match {
-		panic("💥💥 ERROR: CONFIG ENV JWT_CONTEXT_KEY should contain only letters (a-z, A-Z).")
+		return "", ErrJwtContextKeyInvalid
 	}
-	return fmt.Sprintf("%s", val)
+	return val, nil
 }
 
-// GetJwtAuthUrlFromEnvOrPanic returns the url to be used for JWT authentication based on the content of the env variable
-// JWT_AUTH_URL : should exist and contain a string with your url to be used or this function will panic
-func GetJwtAuthUrlFromEnvOrPanic() string {
+// GetJwtAuthUrl returns the JWT authentication URL from environment variable JWT_AUTH_URL
+// Returns error if not set or not a valid URL
+func GetJwtAuthUrl() (string, error) {
 	val, exist := os.LookupEnv("JWT_AUTH_URL")
 	if !exist {
-		panic("💥💥 ERROR: ENV JWT_AUTH_URL should contain your JWT AUTHENTICATION URL.")
+		return "", ErrJwtAuthUrlMissing
 	}
-	// Check if the value contains valid url
-	match, _ := regexp.MatchString("^(?:(?:https?|ftp):\\/\\/(?:[^@]+@)?[^:\\/?#]+(?::\\d+)?(?:\\/[^?#]*)?|\\/[^?#]*)$", val)
+	match, _ := regexp.MatchString("^(?:(?:https?|ftp):\\/\\/(?:[^@]+@)?[^:\\/?#]+(?::\\d+)?(?:\\/[^?#]*)?)|\\/[^?#]*$", val)
 	if !match {
-		panic("💥💥 ERROR: CONFIG ENV JWT_AUTH_URL should contain a valid url")
+		return "", ErrJwtAuthUrlInvalid
 	}
-	return fmt.Sprintf("%s", val)
+	return val, nil
 }
 
-// GetJwtDurationFromEnvOrPanic returns a number  string based on the values of environment variable :
-// JWT_DURATION_MINUTES : int value between 1 and 1440 minutes, 24H or 1 day is the maximum duration
-// the parameter defaultJwtDuration will be used if this env variable is not defined
-// in case the ENV variable JWT_DURATION_MINUTES exists and contains an invalid integer the functions ends execution with Fatalreturns 0 and an error
-func GetJwtDurationFromEnvOrPanic(defaultJwtDuration int) int {
-	JwtDuration := defaultJwtDuration
-	var err error
+// GetJwtDuration returns the JWT duration in minutes from environment variable JWT_DURATION_MINUTES
+// Uses defaultDuration if env var is not set. Returns error if value is invalid (must be 1-1440)
+func GetJwtDuration(defaultDuration int) (int, error) {
 	val, exist := os.LookupEnv("JWT_DURATION_MINUTES")
-	if exist {
-		JwtDuration, err = strconv.Atoi(val)
-		if err != nil {
-			panic("💥💥 ERROR: CONFIG ENV JWT_DURATION_MINUTES should contain a valid integer.")
+	if !exist {
+		if defaultDuration < 1 || defaultDuration > 1440 {
+			return 0, ErrJwtDurationInvalid
 		}
+		return defaultDuration, nil
 	}
-	if JwtDuration < 1 || JwtDuration > 1440 {
-		panic("💥💥 ERROR: CONFIG ENV JWT_DURATION_MINUTES should contain an integer between 1 and 1440")
+	duration, err := strconv.Atoi(val)
+	if err != nil {
+		return 0, fmt.Errorf("ENV JWT_DURATION_MINUTES must be a valid integer: %w", err)
 	}
-	return JwtDuration
+	if duration < 1 || duration > 1440 {
+		return 0, ErrJwtDurationInvalid
+	}
+	return duration, nil
 }
 
-// GetJwtCookieNameFromEnv returns a the name of the http-only cookie to be used to use JWT from env variable
-// JWT_COOKIE_NAME : should exist and contain a string with your cookie name or this function will use the passed default
-func GetJwtCookieNameFromEnv(defaultName string) string {
+// GetJwtCookieName returns the JWT cookie name from environment variable JWT_COOKIE_NAME
+// Uses defaultName if env var is not set
+func GetJwtCookieName(defaultName string) string {
 	val, exist := os.LookupEnv("JWT_COOKIE_NAME")
 	if !exist {
 		return defaultName
 	}
-	return fmt.Sprintf("%s", val)
+	return val
 }
 
-// GetJwtStatusUrlFromEnv returns the url to be used to check JWT token from env variable
-// JWT_STATUS_URL : should exist and contain a relative url for status token check or this function will use the passed default
-func GetJwtStatusUrlFromEnv(defaultName string) string {
+// GetJwtStatusUrl returns the JWT status URL from environment variable JWT_STATUS_URL
+// Uses defaultName if env var is not set
+func GetJwtStatusUrl(defaultName string) string {
 	val, exist := os.LookupEnv("JWT_STATUS_URL")
 	if !exist {
 		return defaultName
 	}
-	return fmt.Sprintf("%s", val)
+	return val
 }

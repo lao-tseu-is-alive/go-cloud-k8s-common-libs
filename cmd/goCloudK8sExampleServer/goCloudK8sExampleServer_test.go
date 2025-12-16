@@ -41,7 +41,10 @@ func TestMainExec(t *testing.T) {
 	if err != nil {
 		log.Fatalf("💥💥 error log.NewLogger error: %v'\n", err)
 	}
-	listenPort := config.GetPortFromEnvOrPanic(defaultPort)
+	listenPort, err := config.GetPort(defaultPort)
+	if err != nil {
+		t.Fatalf("error getting port: %v", err)
+	}
 	listenAddr := fmt.Sprintf("http://localhost:%d", listenPort)
 	fmt.Printf("INFO: 'Will start HTTP server listening on port %s'\n", listenAddr)
 
@@ -58,10 +61,19 @@ func TestMainExec(t *testing.T) {
 	}
 
 	// Get the ENV JWT_AUTH_URL value
-	jwtAuthUrl := config.GetJwtAuthUrlFromEnvOrPanic()
+	jwtAuthUrl, err := config.GetJwtAuthUrl()
+	if err != nil {
+		t.Fatalf("error getting JWT auth URL: %v", err)
+	}
 	formLogin := make(url.Values)
-	mainAdminUser := config.GetAdminUserFromEnvOrPanic(defaultAdminUser)
-	mainAdminPassword := config.GetAdminPasswordFromEnvOrPanic()
+	mainAdminUser, err := config.GetAdminUser(defaultAdminUser)
+	if err != nil {
+		t.Fatalf("error getting admin user: %v", err)
+	}
+	mainAdminPassword, err := config.GetAdminPassword()
+	if err != nil {
+		t.Fatalf("error getting admin password: %v", err)
+	}
 	h := sha256.New()
 	h.Write([]byte(mainAdminPassword))
 	mainAdminPasswordHash := fmt.Sprintf("%x", h.Sum(nil))
