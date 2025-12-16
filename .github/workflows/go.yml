@@ -90,4 +90,10 @@ jobs:
         ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
         ADMIN_ID: ${{ secrets.ADMIN_ID }}
-      run: go test -race -coverprofile coverage.out -v ./...
+      run: go test -race -coverprofile coverage.txt -v ./...
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: lao-tseu-is-alive/go-cloud-k8s-common-libs

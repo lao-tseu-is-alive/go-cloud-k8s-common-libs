@@ -4,7 +4,7 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=lao-tseu-is-alive_go-cloud-k8s-common-libs&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=lao-tseu-is-alive_go-cloud-k8s-common-libs)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=lao-tseu-is-alive_go-cloud-k8s-common-libs&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=lao-tseu-is-alive_go-cloud-k8s-common-libs)
 [![Go-Test](https://github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/actions/workflows/go.yml/badge.svg)](https://github.com/lao-tseu-is-alive/go-cloud-k8s-common-libs/actions/workflows/go.yml)
-
+[![codecov](https://codecov.io/gh/lao-tseu-is-alive/go-cloud-k8s-common-libs/graph/badge.svg?token=8EV2YLEIBA)](https://codecov.io/gh/lao-tseu-is-alive/go-cloud-k8s-common-libs)
 
 **Common Golang packages for MicroServices in the Goeland team (using the Echo framework)**
 
