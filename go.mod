@@ -10,7 +10,6 @@ require (
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/rs/xid v1.6.0
 	github.com/stretchr/testify v1.11.0
-	go.uber.org/zap v1.27.1
 )
 
 require (
@@ -28,7 +27,6 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect

@@ -16,10 +16,10 @@ fi
 echo "## will try to run : go test -race -coverprofile coverage.out -v ./... with env variables in ${ENV_FILENAME} ..."
 
 if [[ -r "$ENV_FILENAME" ]]; then
-    echo "## will do : go test -race -coverprofile coverage.out -v ./... "
+    echo "## will do : go test -race -coverprofile=coverage.txt -v ./... "
     set -a
     source <(sed -e '/^#/d;/^\s*$/d' -e "s/'/'\\\''/g" -e "s/=\(.*\)/='\1'/g" $ENV_FILENAME )
-    go test -race -coverprofile coverage.out -v ./...
+    go test -race -coverprofile=coverage.txt -v ./...
     set +a
 else
   echo "## 💥💥 env path argument : ${ENV_FILENAME} was not found"

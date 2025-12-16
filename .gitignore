@@ -21,3 +21,4 @@
 /.env_for_github.txt
 /cookies.txt
 /minServer
+/.vscode/launch.json
