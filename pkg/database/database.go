@@ -24,12 +24,13 @@ type DB interface {
 	GetQueryString(ctx context.Context, sql string, arguments ...interface{}) (result string, err error)
 	GetVersion(ctx context.Context) (result string, err error)
 	GetPGConn() (Conn *pgxpool.Pool, err error)
+	HealthCheck(ctx context.Context) (alive bool, err error)
 	DoesTableExist(ctx context.Context, schema, table string) (exist bool)
 	Close()
 }
 
 func GetErrorF(errMsg string, err error) error {
-	return errors.New(fmt.Sprintf("%s [%v]", errMsg, err))
+	return fmt.Errorf("%s [%w]", errMsg, err) // %w allows errors.Is() to work!
 }
 
 // GetInstance with appropriate driver

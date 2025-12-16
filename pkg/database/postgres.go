@@ -44,9 +44,9 @@ func newPgxConn(ctx context.Context, dbConnectionString string, maxConnectionsIn
 		var version string
 		errPing := connPool.QueryRow(ctx, getPGVersion).Scan(&version)
 		if errPing != nil {
-			log.Info("something very weird is occurring here... this db connection is probably invalid ! ")
-			log.Fatal("got db error retrieving postgres version with : [%s] error: %s", getPGVersion, errPing)
-			return nil, errPing
+			log.Error("got db error retrieving postgres version: %s", errPing)
+			// Return the error, don't kill the process
+			return nil, fmt.Errorf("failed to verify db connection: %w", errPing)
 		}
 
 		log.Info("Postgres version: [%s]'", version)
