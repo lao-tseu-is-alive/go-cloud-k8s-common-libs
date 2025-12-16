@@ -46,7 +46,7 @@ func (s *Server) SendJSONResponse(ctx echo.Context, statusCode int, status, msg 
 
 func (s *Server) GetReadinessHandler(readyFunc FuncAreWeReady, msg string) echo.HandlerFunc {
 	handlerName := "GetReadinessHandler"
-	s.logger.Debug(initCallMsg, handlerName)
+	s.logger.Debug("initial call to handler", "handler", handlerName)
 	return func(ctx echo.Context) error {
 		ready := readyFunc(msg)
 		if ready {
@@ -60,7 +60,7 @@ func (s *Server) GetReadinessHandler(readyFunc FuncAreWeReady, msg string) echo.
 }
 func (s *Server) GetHealthHandler(healthyFunc FuncAreWeHealthy, msg string) echo.HandlerFunc {
 	handlerName := "GetHealthHandler"
-	s.logger.Debug(initCallMsg, handlerName)
+	s.logger.Debug("initial call to handler", "handler", handlerName)
 	return func(ctx echo.Context) error {
 		healthy := healthyFunc(msg)
 		if healthy {
@@ -75,7 +75,7 @@ func (s *Server) GetHealthHandler(healthyFunc FuncAreWeHealthy, msg string) echo
 
 func (s *Server) GetAppInfoHandler() echo.HandlerFunc {
 	handlerName := "GetAppInfoHandler"
-	s.logger.Debug(initCallMsg, handlerName)
+	s.logger.Debug("initial call to handler", "handler", handlerName)
 	return func(ctx echo.Context) error {
 		TraceHttpRequest(handlerName, ctx.Request(), s.logger)
 		return ctx.JSON(http.StatusOK, s.VersionReader.GetAppInfo())
