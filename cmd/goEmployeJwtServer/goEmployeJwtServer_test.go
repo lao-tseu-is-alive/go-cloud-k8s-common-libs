@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -35,6 +36,17 @@ type testStruct struct {
 	headers        map[string]string
 }
 
+// isPortAvailable checks if a port is available for binding
+func isPortAvailable(port int) bool {
+	addr := fmt.Sprintf(":%d", port)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
+}
+
 // TestMainExec is instantiating the "real" main code using the env variable
 // This test requires a running PostgreSQL database with proper env vars
 func TestMainExec(t *testing.T) {
@@ -43,6 +55,12 @@ func TestMainExec(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error getting port: %v", err)
 	}
+
+	// Skip if port is already in use (another integration test is running)
+	if !isPortAvailable(listenPort) {
+		t.Skipf("Skipping test: port %d is already in use by another test", listenPort)
+	}
+
 	listenAddr := fmt.Sprintf("http://localhost:%d", listenPort)
 	fmt.Printf("INFO: 'goEmployeJwtServer will start HTTP server listening on port %s'\n", listenAddr)
 

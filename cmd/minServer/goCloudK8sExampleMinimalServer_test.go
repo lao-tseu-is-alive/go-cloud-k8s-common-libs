@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -34,6 +35,17 @@ type testStruct struct {
 	body           string
 }
 
+// isPortAvailable checks if a port is available for binding
+func isPortAvailable(port int) bool {
+	addr := fmt.Sprintf(":%d", port)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
+}
+
 // TestMainExec is instantiating the "real" main code using the env variable
 func TestMainExec(t *testing.T) {
 	l := golog.NewLogger("simple", os.Stdout, golog.DebugLevel, "TestMinServerMainExec")
@@ -41,6 +53,12 @@ func TestMainExec(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error getting port: %v", err)
 	}
+
+	// Skip if port is already in use (another integration test is running)
+	if !isPortAvailable(listenPort) {
+		t.Skipf("Skipping test: port %d is already in use by another test", listenPort)
+	}
+
 	listenAddr := fmt.Sprintf("http://localhost:%d", listenPort)
 	fmt.Printf("INFO: 'MinServer will start HTTP server listening on port %s'\n", listenAddr)
 
